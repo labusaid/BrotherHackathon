@@ -1,19 +1,16 @@
-package com.example.brotherhackathontesting
+package com.latheabusaid.brotherhackathontesting
 
-import android.bluetooth.BluetoothAdapter
-import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
-import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
+
 import com.brother.ptouch.sdk.LabelInfo
 import com.brother.ptouch.sdk.Printer
 import com.brother.ptouch.sdk.PrinterInfo
 import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import kotlinx.android.synthetic.main.activity_main.*
-import java.io.File
 
 
 class MainActivity : AppCompatActivity() {
@@ -27,10 +24,15 @@ class MainActivity : AppCompatActivity() {
         val settings: PrinterInfo = printer.getPrinterInfo()
         settings.printerModel = PrinterInfo.Model.QL_1110NWB
 
+        // For Network:
+        settings.port = PrinterInfo.Port.NET
+        settings.ipAddress = "192.168.2.167"
+        // For USB:
+//        settings.port = PrinterInfo.Port.USB
         // For Bluetooth:
-        printer.setBluetooth(BluetoothAdapter.getDefaultAdapter())
-        settings.port = PrinterInfo.Port.BLUETOOTH
-        settings.macAddress = "18:04:ED:68:2A:88"
+//        printer.setBluetooth(BluetoothAdapter.getDefaultAdapter())
+//        settings.port = PrinterInfo.Port.BLUETOOTH
+//        settings.macAddress = "18:04:ED:68:2A:88"
 
         // Print Settings
         settings.labelNameIndex = LabelInfo.QL1100.W102H51.ordinal
@@ -42,14 +44,7 @@ class MainActivity : AppCompatActivity() {
             if (printer.startCommunication()) {
                 // Put any code to use printer
 
-                val bitmap1 = R.drawable.david
-                Log.d(TAG, bitmap1.toString())
-
-                val fileName = "@drawable/david.bmp"
-                val file = File(fileName)
-                val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-
-                val result = printer.printImage(bitmap)
+                val result = printer.printPdfFile("label4x6.pdf", 0)
                 if (result.errorCode != ErrorCode.ERROR_NONE) {
                     Log.d(TAG, "ERROR - " + result.errorCode)
                 }
@@ -57,13 +52,6 @@ class MainActivity : AppCompatActivity() {
                 printer.endCommunication()
             }
         }).start()
-
-
-        // For Network:
-//        settings.port = PrinterInfo.Port.NET
-//        settings.ipAddress = "your-printer-ip-address"
-        // For USB:
-//        settings.port = PrinterInfo.Port.USB
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

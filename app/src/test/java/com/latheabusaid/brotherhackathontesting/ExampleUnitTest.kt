@@ -1,4 +1,4 @@
-package com.example.brotherhackathontesting
+package com.latheabusaid.brotherhackathontesting
 
 import org.junit.Test
 
