@@ -12,7 +12,6 @@ import com.brother.ptouch.sdk.PrinterInfo
 import com.brother.ptouch.sdk.Unit
 import java.io.*
 import java.util.*
-
 object PrinterManager {
     val supportedModels = arrayOf(
         "QL-820NWB",
@@ -39,36 +38,34 @@ object PrinterManager {
     )
     private var model: PrinterInfo.Model? = null
     private var info: PrinterInfo? = null
-    private var printer: Printer? = null
-    private var printerModel: String? = null
+    var printer: Printer? = null
+        private set
+
+    var printerModel: String? = null
+        set(value) {
+            field = value
+            mode = null
+        }
     private var mode: String? = null
-    private var connection: CONNECTION? = null
+    var connection: CONNECTION? = null
+
     private var ctx: Context? = null
     private var done = true
     private const val toast = true
 
-    fun getModel(): String? {
-        return printerModel
+    fun getSupportedConnections(): Array<CONNECTION> {
+        return CONNECTION.values()
     }
 
-    fun setModel(m: String?) {
-        printerModel = m
-        mode = null
-    }
-
-    val supportedConnections: Array<CONNECTION>
-        get() = CONNECTION.values()
-
-    val labelRoll: Array<String>
-        get() {
-            if (printerModel != null) {
-                for (i in supportedModels.indices) if (supportedModels[i] == printerModel) return arrayOf(
-                    LABELS[i],
-                    ROLLS[i]
-                )
-            }
-            return arrayOf()
+    fun getLabelRoll(): Array<String> {
+        if (printerModel != null) {
+            for (i in supportedModels.indices) if (supportedModels[i] == printerModel) return arrayOf(
+                LABELS[i],
+                ROLLS[i]
+            )
         }
+        return arrayOf()
+    }
 
     private fun setRJ2150Paper(isRoll: Boolean) {
         info!!.customPaper =
@@ -267,7 +264,7 @@ object PrinterManager {
                             dashToLower(printerModel)
                         )
                         info?.port = PrinterInfo.Port.BLE
-                        info?.setLocalName(printer.localName) // Probably wrong.
+                        info?.localName = printer.localName // Probably wrong.
                         done = true
                         return
                     }
@@ -306,7 +303,7 @@ object PrinterManager {
                             printerModel =
                                 lowerToDash(model.toString())
                             info?.port = PrinterInfo.Port.BLE
-                            info?.setLocalName(printer.localName) // Probably wrong.
+                            info?.localName = printer.localName // Probably wrong.
                             done = true
                             return
                         }
@@ -427,3 +424,4 @@ object PrinterManager {
         BLUETOOTH, WIFI, USB
     }
 }
+

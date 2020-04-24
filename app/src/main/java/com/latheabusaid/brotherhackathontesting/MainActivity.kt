@@ -5,9 +5,6 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
-
-import com.brother.ptouch.sdk.LabelInfo
-import com.brother.ptouch.sdk.Printer
 import com.brother.ptouch.sdk.PrinterInfo
 import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import kotlinx.android.synthetic.main.activity_main.*
@@ -19,26 +16,7 @@ class MainActivity : AppCompatActivity() {
 
     fun yourGreatFeature() {
         Log.d(TAG, "yourGreatFeature() invoked")
-
-        val printer = Printer()
-        val settings: PrinterInfo = printer.getPrinterInfo()
-        settings.printerModel = PrinterInfo.Model.QL_1110NWB
-
-        // For Network:
-        settings.port = PrinterInfo.Port.NET
-        settings.ipAddress = "192.168.2.167"
-        // For USB:
-//        settings.port = PrinterInfo.Port.USB
-        // For Bluetooth:
-//        printer.setBluetooth(BluetoothAdapter.getDefaultAdapter())
-//        settings.port = PrinterInfo.Port.BLUETOOTH
-//        settings.macAddress = "18:04:ED:68:2A:88"
-
-        // Print Settings
-        settings.labelNameIndex = LabelInfo.QL1100.W102H51.ordinal
-        settings.printMode = PrinterInfo.PrintMode.FIT_TO_PAGE
-        settings.isAutoCut = true
-        printer.printerInfo = settings
+        val printerModel: PrinterInfo.Model? = PrinterManager.model
 
         Thread(Runnable {
             if (printer.startCommunication()) {
