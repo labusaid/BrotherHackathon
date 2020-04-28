@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -27,7 +29,6 @@ import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.content_main.*
 import java.io.File
 import java.io.IOException
-import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -36,8 +37,38 @@ class MainActivity : AppCompatActivity() {
 
     private val TAG = "MainActivity"
 
+    private var barcodeScanUri: Uri? = null
+
+    // Method to get a bitmap from assets
+    private fun assetsToBitmap(fileName:String):Bitmap?{
+        return try{
+            val stream = assets.open(fileName)
+            BitmapFactory.decodeStream(stream)
+        }catch (e:IOException){
+            e.printStackTrace()
+            null
+        }
+    }
+
+    lateinit var currentPhotoPath: String
+    @Throws(IOException::class)
+    private fun createImageFile(): File {
+        // Create an image file name
+        val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
+        val storageDir: File? = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+        return File.createTempFile(
+            "BMP_${timeStamp}_", /* prefix */
+            ".bmp", /* suffix */
+            storageDir /* directory */
+        ).apply {
+            // Save a file: path for use with ACTION_VIEW intents
+            currentPhotoPath = absolutePath
+            Log.d(TAG, "File saved to ${absolutePath}")
+        }
+    }
     // Dispatches photo intent
     val REQUEST_TAKE_PHOTO = 1
+
     @SuppressLint("LogConditional")
     private fun dispatchTakePictureIntent() {
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).also { takePictureIntent ->
@@ -58,80 +89,42 @@ class MainActivity : AppCompatActivity() {
                     takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
                     startActivityForResult(takePictureIntent, REQUEST_TAKE_PHOTO)
                     Log.d(TAG, "File saved to URI: $photoURI")
-
-                    val imageBitmap = assetsToBitmap("vinbarcode.bmp")
-                    Log.d(TAG, "Bitmap loaded: $imageBitmap")
-                    imageView.setImageBitmap(imageBitmap)
-                    val image = imageBitmap?.let { it1 -> FirebaseVisionImage.fromBitmap(it1) }
-                    val detector = FirebaseVision.getInstance().visionBarcodeDetector
-                    val result = image?.let { it1 ->
-                        detector.detectInImage(it1)
-                            .addOnSuccessListener { barcodes ->
-                                // Task completed successfully
-                                for (barcode in barcodes) {
-                                    Log.d(TAG, "barcode value: ${barcode.rawValue}")
-                                }
-                            }
-                            .addOnFailureListener {
-                                // Task failed with an exception
-                                Log.d(TAG, "could not read barcode")
-                            }
-                    }
+                    barcodeScanUri = photoURI
                 }
             }
         }
     }
 
-    // Method to get a bitmap from assets
-    private fun assetsToBitmap(fileName:String):Bitmap?{
-        return try{
-            val stream = assets.open(fileName)
-            BitmapFactory.decodeStream(stream)
-        }catch (e:IOException){
-            e.printStackTrace()
-            null
-        }
-    }
-
-    lateinit var currentPhotoPath: String
-    @Throws(IOException::class)
-    private fun createImageFile(): File {
-        // Create an image file name
-        val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
-        val storageDir: File? = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-        return File.createTempFile(
-            "JPEG_${timeStamp}_", /* prefix */
-            ".jpg", /* suffix */
-            storageDir /* directory */
-        ).apply {
-            // Save a file: path for use with ACTION_VIEW intents
-            currentPhotoPath = absolutePath
-            Log.d(TAG, "File saved to ${absolutePath}")
-        }
-    }
-
     // Captures thumbnail from camera intent
-//    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-//        super.onActivityResult(requestCode, resultCode, data)
-//        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-//            val imageBitmap = data?.extras?.get("data") as Bitmap
-//            imageView.setImageBitmap(imageBitmap)
-//            val image = FirebaseVisionImage.fromBitmap(imageBitmap)
-//            val detector = FirebaseVision.getInstance().visionBarcodeDetector
-//            val result = detector.detectInImage(image)
-//                .addOnSuccessListener { barcodes ->
-//                    // Task completed successfully
-//                    for (barcode in barcodes) {
-//                        Log.d(TAG, "barcode value: ${barcode.rawValue}")
-//                    }
-//                }
-//                .addOnFailureListener {
-//                    // Task failed with an exception
-//                    Log.d(TAG, "could not read barcode")
-//                }
-//        }
-//    }
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_OK) {
 
+            val imageBitmap = MediaStore.Images.Media.getBitmap(
+                this.contentResolver,
+                barcodeScanUri
+            )
+
+            Log.d(TAG, "Bitmap loaded: $imageBitmap")
+            imageView.setImageBitmap(imageBitmap)
+            val image = FirebaseVisionImage.fromBitmap(imageBitmap!!)
+            val detector = FirebaseVision.getInstance().visionBarcodeDetector
+            Log.d(TAG, "attempting to scan barcode")
+            val result = detector.detectInImage(image)
+                .addOnSuccessListener { barcodes ->
+                    Log.d(TAG, "barcode successfully scanned")
+                    for (barcode in barcodes) {
+                        // Task completed successfully
+                        Log.d(TAG, "barcode value: ${barcode.rawValue}")
+                        printTicket(barcode.rawValue)
+                    }
+                }
+                .addOnFailureListener {
+                    // Task failed with an exception
+                    Log.d(TAG, "could not read barcode")
+                }
+        }
+    }
 
     private fun scanBarcodes(image: FirebaseVisionImage) {
         // ML Kit barcode options (CODE_39 for VINs)
@@ -201,20 +194,34 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun printBMP() {
-        Log.d(TAG, "printBMP() invoked")
+    private fun printTicket(barcode: String?) {
+        Log.d(TAG, "printText() invoked")
         Thread(Runnable {
             // Configure connection
             PrinterManager.findPrinter("QL-1110NWB", CONNECTION.BLUETOOTH)
+            PrinterManager.setWorkingDirectory(context = this)
             PrinterManager.loadRoll()
             val printer = PrinterManager.printer
+
+            var templateBmp = assetsToBitmap("blankTicket.bmp")
+            val mutableBitmap: Bitmap = templateBmp?.copy(Bitmap.Config.ARGB_8888, true)!!
+
+            val canvas = Canvas(mutableBitmap!!)
+            val textPaint = Paint()
+            textPaint.setARGB(255, 0, 0, 0)
+            textPaint.textAlign = Paint.Align.CENTER
+            //textPaint.setTypeface()
+            textPaint.textSize = 40F
+            val xPos: Int = canvas.width / 2
+            val yPos = (canvas.height / 2 - (textPaint.descent() + textPaint.ascent()) / 2)
+            canvas.drawText(barcode!!, xPos.toFloat(), yPos, textPaint);
 
             // Establish connection
             if (printer != null) {
                 if (printer.startCommunication()) {
                     Log.d(TAG, "Printer communication established")
                     // Put any code to use printer
-                    val result = printer.printImage(assetsToBitmap("vinbarcode.bmp"))
+                    val result = printer.printImage(mutableBitmap)
                     if (result.errorCode != ErrorCode.ERROR_NONE) {
                         Log.d(TAG, "ERROR - " + result.errorCode)
                     }
@@ -232,7 +239,7 @@ class MainActivity : AppCompatActivity() {
         loadPrinterPreferences()
 
         fab.setOnClickListener { view ->
-            printBMP()
+
         }
 
         imageView.setOnClickListener { view ->
