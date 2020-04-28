@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1095681444609",
+    "firebase_url": "https://brotherhackathon-35667.firebaseio.com",
+    "project_id": "brotherhackathon-35667",
+    "storage_bucket": "brotherhackathon-35667.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1095681444609:android:317cb4cf592135a9aa2900",
+        "android_client_info": {
+          "package_name": "com.example.brotherhackathon"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1095681444609-efur32pjun7sd433oaca4mcii168h5k1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.brotherhackathon",
+            "certificate_hash": "1b37b9b462b6670f80ac64c19f1ea5e0631e549b"
+          }
+        },
+        {
+          "client_id": "1095681444609-0ahuijkc9fna8uhsu9pfdcojdctr0mcu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-rRbYyoDZiTMPWnQ-iupbW2CRxopJzgo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1095681444609-0ahuijkc9fna8uhsu9pfdcojdctr0mcu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

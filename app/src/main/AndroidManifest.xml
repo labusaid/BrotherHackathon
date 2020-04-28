@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.latheabusaid.brotherhackathontesting" >
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.latheabusaid.brotherhackathon" >
 
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
@@ -10,6 +11,9 @@
     <!-- For Bluetooth -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-feature android:name="android.hardware.camera"
+        android:required="true"
+        tools:ignore="UnsupportedChromeOsHardware" />
 
     <application
         android:allowBackup="true"
@@ -19,7 +23,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme" >
         <activity
-            android:name="com.latheabusaid.brotherhackathontesting.MainActivity"
+            android:name="com.latheabusaid.brotherhackathon.MainActivity"
             android:label="@string/app_name"
             android:theme="@style/AppTheme.NoActionBar" >
             <intent-filter>
@@ -28,6 +32,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <meta-data
+            android:name="com.google.firebase.ml.vision.DEPENDENCIES"
+            android:value="barcode" />
+        <!-- To use multiple models: android:value="barcode,model2,model3" -->
     </application>
 
 </manifest>
