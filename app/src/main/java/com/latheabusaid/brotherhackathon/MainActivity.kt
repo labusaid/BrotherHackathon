@@ -112,7 +112,7 @@ class MainActivity : AppCompatActivity() {
             Log.d(TAG, "attempting to scan barcode")
             val result = detector.detectInImage(image)
                 .addOnSuccessListener { barcodes ->
-                    Log.d(TAG, "barcode successfully scanned")
+                    Log.d(TAG, "${barcodes.size} barcodes successfully scanned")
                     for (barcode in barcodes) {
                         // Task completed successfully
                         Log.d(TAG, "barcode value: ${barcode.rawValue}")
