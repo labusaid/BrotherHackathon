@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.os.Build
+import android.widget.Toast
 import com.brother.ptouch.sdk.CustomPaperInfo
 import com.brother.ptouch.sdk.LabelInfo
 import com.brother.ptouch.sdk.Printer
@@ -63,25 +64,18 @@ object PrinterManager {
     // Type of label (roll or label)
     private var labelType: String? = null
 
-    // Defines connection type
+    // Defines valid connection types
     enum class CONNECTION {
         BLUETOOTH, WIFI, USB
     }
-
     var connection: CONNECTION? = null
-
-    private var ctx: Context? = null
-    private var done = true
-
-    // Used to change how debug info is displayed
-    private fun toastIt(s: String) {
-        println(s)
-    }
-
-    // ???
+    //
     fun getSupportedConnections(): Array<CONNECTION> {
         return CONNECTION.values()
     }
+
+    private var ctx: Context? = null
+    private var done = true
 
     // Returns corresponding label and roll for model
     fun getLabelRoll(): Array<String> {
@@ -95,6 +89,63 @@ object PrinterManager {
         return arrayOf()
     }
 
+    // Sets labelType to corresponding label type
+    fun loadLabel() {
+        labelType = "label"
+        when (printerModel) {
+            "QL-820NWB", "QL_820NWB" -> {
+                info!!.labelNameIndex = LabelInfo.QL700.W29H90.ordinal
+                info!!.printMode =
+                    PrinterInfo.PrintMode.FIT_TO_PAGE
+                info!!.isAutoCut = true
+            }
+            "QL-1110NWB", "QL_1110NWB" -> {
+                info!!.labelNameIndex = LabelInfo.QL1100.W103H164.ordinal
+                info!!.printMode =
+                    PrinterInfo.PrintMode.FIT_TO_PAGE
+                info!!.isAutoCut = true
+            }
+            "RJ-2150", "RJ_2150" -> setRJ2150Paper(false)
+            "RJ-4250WB", "RJ_4250WB" -> setRJ4250Paper(false)
+            "PJ-763", "PJ_763", "PJ-763MFi", "PJ_763MFi", "PJ-773", "PJ_773" -> {
+                info!!.paperSize = PrinterInfo.PaperSize.LETTER
+                info!!.printMode =
+                    PrinterInfo.PrintMode.FIT_TO_PAGE
+            }
+        }
+        toastIt("Load " + labelType + " " + info!!.labelNameIndex + " " + info!!.paperSize + " " + info!!.customPaper)
+        printer!!.printerInfo = info
+    }
+
+    // Sets labelType to corresponding continuous roll type
+    fun loadRoll() {
+        labelType = "roll"
+        when (printerModel) {
+            "QL-820NWB", "QL_820NWB" -> {
+                info!!.labelNameIndex = LabelInfo.QL700.W62RB.ordinal
+                info!!.printMode =
+                    PrinterInfo.PrintMode.FIT_TO_PAGE
+                info!!.isAutoCut = true
+            }
+            "QL-1110NWB", "QL_1110NWB" -> {
+                info!!.labelNameIndex = LabelInfo.QL1100.W62.ordinal
+                info!!.printMode =
+                    PrinterInfo.PrintMode.FIT_TO_PAGE
+                info!!.isAutoCut = true
+            }
+            "RJ-2150", "RJ_2150" -> setRJ2150Paper(true)
+            "RJ-4250WB", "RJ_4250WB" -> setRJ4250Paper(true)
+            "PJ-763", "PJ_763", "PJ-763MFi", "PJ_763MFi", "PJ-773", "PJ_773" -> {
+                info!!.paperSize = PrinterInfo.PaperSize.A4
+                info!!.printMode =
+                    PrinterInfo.PrintMode.FIT_TO_PAGE
+            }
+        }
+        toastIt("Load " + labelType + " " + info!!.labelNameIndex + " " + info!!.paperSize + " " + info!!.customPaper)
+        printer!!.printerInfo = info
+    }
+
+    // Copies settings from bin file for RJ2150
     private fun setRJ2150Paper(isRoll: Boolean) {
         info!!.customPaper =
             ctx!!.filesDir.absolutePath + "/rj_2150_"
@@ -107,6 +158,7 @@ object PrinterManager {
         info!!.printMode = PrinterInfo.PrintMode.FIT_TO_PAGE
     }
 
+    // Custom settings for RJ4250
     private fun setRJ4250Paper(isRoll: Boolean) {
         val width = 102.0f
         val margins = 0.0f
@@ -144,61 +196,7 @@ object PrinterManager {
         info!!.printMode = PrinterInfo.PrintMode.FIT_TO_PAGE
     }
 
-    fun loadLabel() {
-        labelType = "label"
-        when (printerModel) {
-            "QL-820NWB", "QL_820NWB" -> {
-                info!!.labelNameIndex = LabelInfo.QL700.W29H90.ordinal
-                info!!.printMode =
-                    PrinterInfo.PrintMode.FIT_TO_PAGE
-                info!!.isAutoCut = true
-            }
-            "QL-1110NWB", "QL_1110NWB" -> {
-                info!!.labelNameIndex = LabelInfo.QL1100.W103H164.ordinal
-                info!!.printMode =
-                    PrinterInfo.PrintMode.FIT_TO_PAGE
-                info!!.isAutoCut = true
-            }
-            "RJ-2150", "RJ_2150" -> setRJ2150Paper(false)
-            "RJ-4250WB", "RJ_4250WB" -> setRJ4250Paper(false)
-            "PJ-763", "PJ_763", "PJ-763MFi", "PJ_763MFi", "PJ-773", "PJ_773" -> {
-                info!!.paperSize = PrinterInfo.PaperSize.LETTER
-                info!!.printMode =
-                    PrinterInfo.PrintMode.FIT_TO_PAGE
-            }
-        }
-        toastIt("Load " + labelType + " " + info!!.labelNameIndex + " " + info!!.paperSize + " " + info!!.customPaper)
-        printer!!.printerInfo = info
-    }
-
-    fun loadRoll() {
-        labelType = "roll"
-        when (printerModel) {
-            "QL-820NWB", "QL_820NWB" -> {
-                info!!.labelNameIndex = LabelInfo.QL700.W62RB.ordinal
-                info!!.printMode =
-                    PrinterInfo.PrintMode.FIT_TO_PAGE
-                info!!.isAutoCut = true
-            }
-            "QL-1110NWB", "QL_1110NWB" -> {
-                info!!.labelNameIndex = LabelInfo.QL1100.W62.ordinal
-                info!!.printMode =
-                    PrinterInfo.PrintMode.FIT_TO_PAGE
-                info!!.isAutoCut = true
-            }
-            "RJ-2150", "RJ_2150" -> setRJ2150Paper(true)
-            "RJ-4250WB", "RJ_4250WB" -> setRJ4250Paper(true)
-            "PJ-763", "PJ_763", "PJ-763MFi", "PJ_763MFi", "PJ-773", "PJ_773" -> {
-                info!!.paperSize = PrinterInfo.PaperSize.A4
-                info!!.printMode =
-                    PrinterInfo.PrintMode.FIT_TO_PAGE
-            }
-        }
-        toastIt("Load " + labelType + " " + info!!.labelNameIndex + " " + info!!.paperSize + " " + info!!.customPaper)
-        printer!!.printerInfo = info
-    }
-
-    // ???
+    // Sets context and working directory for printer SDK to use
     fun setWorkingDirectory(context: Context?) {
         ctx = context
         raw2file(
@@ -212,15 +210,15 @@ object PrinterManager {
         info!!.workPath = ctx!!.filesDir.absolutePath + "/"
     }
 
+    // ???
     fun findNetworkPrinterManually() {
         done = false
         printer = Printer()
         info = printer!!.printerInfo
-        model = PrinterInfo.Model.valueOf(
-            printerModel!!.replace("-", "_")
-        )
+        model = PrinterInfo.Model.valueOf(printerModel!!.replace("-", "_"))
     }
 
+    // Manually set IP for network connection
     fun connectNetworkPrinterManually(ip: String?) {
         info!!.printerModel = model
         info!!.port = PrinterInfo.Port.NET
@@ -229,6 +227,7 @@ object PrinterManager {
         done = true
     }
 
+    // Auto connects to printer when given model and desired connection type
     fun findPrinter(newPrinterModel: String?, newConnection: CONNECTION?) {
         printerModel = newPrinterModel
         connection = newConnection
@@ -236,6 +235,7 @@ object PrinterManager {
         findPrinter()
     }
 
+    // Sets up printer with configured settings
     private fun findPrinter() {
         done = false
         printer = Printer()
@@ -259,7 +259,7 @@ object PrinterManager {
                         return
                     }
                 }
-                val pairedDevices = getPairedBluetoothDevice(bluetoothAdapter)
+                val pairedDevices = getPairedBluetoothDevices(bluetoothAdapter)
                 for (device in pairedDevices) {
                     if (device.name.contains(printerModel!!)) {
                         toastIt("Direct Bluetooth: " + printerModel + " " + device.name)
@@ -359,8 +359,7 @@ object PrinterManager {
                             printer.modelName!!.replace("-", "_").split("Brother ")
                                 .toTypedArray()[1]
                         )
-                        printerModel =
-                            model.toString().replace("_", "-")
+                        printerModel = model.toString().replace("_", "-")
                         info?.printerModel = model
                         info?.port = PrinterInfo.Port.NET
                         info?.ipAddress = printer.ipAddress
@@ -385,8 +384,9 @@ object PrinterManager {
         }
     }
 
+    // Returns list of paired bluetooth devices
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
-    private fun getPairedBluetoothDevice(bluetoothAdapter: BluetoothAdapter?): List<BluetoothDevice> {
+    private fun getPairedBluetoothDevices(bluetoothAdapter: BluetoothAdapter?): List<BluetoothDevice> {
         val pairedDevices = bluetoothAdapter!!.bondedDevices
         if (pairedDevices == null || pairedDevices.size == 0) {
             return ArrayList()
@@ -404,9 +404,17 @@ object PrinterManager {
         return devices
     }
 
-    /**
-     * copy from raw in resource
-     */
+    // ------------------- Helper Functions -------------------
+
+    // Creates a toast for information displaying
+    private fun toastIt(text: String) {
+        val duration = Toast.LENGTH_SHORT
+
+        val toast = Toast.makeText(ctx, text, duration)
+        toast.show()
+    }
+
+    // copy from raw in resource
     private fun raw2file(fileName: String, fileID: Int) {
         val path = ctx!!.filesDir.absolutePath + "/"
         val newdir = File(path)

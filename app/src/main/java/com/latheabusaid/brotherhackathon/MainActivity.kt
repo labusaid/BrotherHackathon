@@ -203,7 +203,7 @@ class MainActivity : AppCompatActivity() {
             PrinterManager.loadRoll()
             val printer = PrinterManager.printer
 
-            var templateBmp = assetsToBitmap("blankTicket.bmp")
+            val templateBmp = assetsToBitmap("blankTicket.bmp")
             val mutableBitmap: Bitmap = templateBmp?.copy(Bitmap.Config.ARGB_8888, true)!!
 
             val canvas = Canvas(mutableBitmap!!)
