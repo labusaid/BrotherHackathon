@@ -14,7 +14,15 @@ import com.brother.ptouch.sdk.Unit
 import java.io.*
 import java.util.*
 
+@Suppress("MemberVisibilityCanBePrivate")
 object PrinterManager {
+    /** Usage:
+     * Establish connection to printer (findPrinter() is simplest method)
+     * Pass context in with setWorkingDirectory()
+     * Set label type
+     * Print with SDK functions
+     */
+
     // Define supported printers
     val supportedModels = arrayOf(
         "QL-820NWB",
@@ -54,7 +62,7 @@ object PrinterManager {
     // Printer model definition
     private var model: PrinterInfo.Model? = null
 
-    // ???
+    // Printer model as string, resets label type when model is changed
     var printerModel: String? = null
         set(value) {
             field = value
@@ -69,7 +77,7 @@ object PrinterManager {
         BLUETOOTH, WIFI, USB
     }
     var connection: CONNECTION? = null
-    //
+    // Returns valid connection types
     fun getSupportedConnections(): Array<CONNECTION> {
         return CONNECTION.values()
     }
@@ -89,6 +97,7 @@ object PrinterManager {
         return arrayOf()
     }
 
+//    @ReactMethod
     // Sets labelType to corresponding label type
     fun loadLabel() {
         labelType = "label"
@@ -117,6 +126,7 @@ object PrinterManager {
         printer!!.printerInfo = info
     }
 
+//    @ReactMethod
     // Sets labelType to corresponding continuous roll type
     fun loadRoll() {
         labelType = "roll"
@@ -227,6 +237,7 @@ object PrinterManager {
         done = true
     }
 
+//    @ReactMethod
     // Auto connects to printer when given model and desired connection type
     fun findPrinter(newPrinterModel: String?, newConnection: CONNECTION?) {
         printerModel = newPrinterModel
@@ -410,8 +421,8 @@ object PrinterManager {
     private fun toastIt(text: String) {
         val duration = Toast.LENGTH_SHORT
 
-        val toast = Toast.makeText(ctx, text, duration)
-        toast.show()
+//        val toast = Toast.makeText(ctx, text, duration)
+//        toast.show()
     }
 
     // copy from raw in resource

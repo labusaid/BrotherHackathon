@@ -1,6 +1,5 @@
 package com.latheabusaid.brotherhackathon
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -27,11 +26,17 @@ import com.latheabusaid.brotherhackathon.PrinterManager.loadLabel
 import com.latheabusaid.brotherhackathon.PrinterManager.loadRoll
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.content_main.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
-
 
 class MainActivity : AppCompatActivity() {
 
@@ -40,17 +45,18 @@ class MainActivity : AppCompatActivity() {
     private var barcodeScanUri: Uri? = null
 
     // Method to get a bitmap from assets
-    private fun assetsToBitmap(fileName:String):Bitmap?{
-        return try{
+    private fun assetsToBitmap(fileName: String): Bitmap? {
+        return try {
             val stream = assets.open(fileName)
             BitmapFactory.decodeStream(stream)
-        }catch (e:IOException){
+        } catch (e: IOException) {
             e.printStackTrace()
             null
         }
     }
 
     lateinit var currentPhotoPath: String
+
     @Throws(IOException::class)
     private fun createImageFile(): File {
         // Create an image file name
@@ -66,10 +72,10 @@ class MainActivity : AppCompatActivity() {
             Log.d(TAG, "File saved to ${absolutePath}")
         }
     }
+
     // Dispatches photo intent
     val REQUEST_TAKE_PHOTO = 1
 
-    @SuppressLint("LogConditional")
     private fun dispatchTakePictureIntent() {
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).also { takePictureIntent ->
             // Ensure that there's a camera activity to handle the intent
@@ -79,13 +85,13 @@ class MainActivity : AppCompatActivity() {
                     createImageFile()
                 } catch (ex: IOException) {
                     // Error occurred while creating the File
-
                     null
                 }
                 // Continue only if the File was successfully created
                 photoFile?.also {
                     val photoURI: Uri = FileProvider.getUriForFile(
-                        this, "com.latheabusaid.brotherhackathon.fileprovider", it)
+                        this, "com.latheabusaid.brotherhackathon.fileprovider", it
+                    )
                     takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
                     startActivityForResult(takePictureIntent, REQUEST_TAKE_PHOTO)
                     Log.d(TAG, "File saved to URI: $photoURI")
@@ -108,6 +114,13 @@ class MainActivity : AppCompatActivity() {
             Log.d(TAG, "Bitmap loaded: $imageBitmap")
             imageView.setImageBitmap(imageBitmap)
             val image = FirebaseVisionImage.fromBitmap(imageBitmap!!)
+            // ML Kit barcode options (CODE_39 for VINs)
+            val options = FirebaseVisionBarcodeDetectorOptions.Builder()
+                .setBarcodeFormats(
+                    FirebaseVisionBarcode.FORMAT_CODE_39
+                )
+                .build()
+            // Create barcode detector object
             val detector = FirebaseVision.getInstance().visionBarcodeDetector
             Log.d(TAG, "attempting to scan barcode")
             val result = detector.detectInImage(image)
@@ -126,47 +139,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun scanBarcodes(image: FirebaseVisionImage) {
-        // ML Kit barcode options (CODE_39 for VINs)
-        val options = FirebaseVisionBarcodeDetectorOptions.Builder()
-            .setBarcodeFormats(
-                FirebaseVisionBarcode.FORMAT_CODE_39)
+    private suspend fun lookupVin() = withContext(Dispatchers.IO) {
+        val client = OkHttpClient()
+
+        val request: Request = Request.Builder()
+            .url("https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/2T1BR30E46C595221?format=json")
             .build()
 
-        val detector = FirebaseVision.getInstance().visionBarcodeDetector
+        val response: Response = client.newCall(request).execute()
 
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("Unexpected code $response")
 
-
-        val result = detector.detectInImage(image)
-            .addOnSuccessListener { barcodes ->
-                // Task completed successfully
-                for (barcode in barcodes) {
-                    val bounds = barcode.boundingBox
-                    val corners = barcode.cornerPoints
-
-                    val rawValue = barcode.rawValue
-
-                    val valueType = barcode.valueType
-                    // See API reference for complete list of supported types
-                    when (valueType) {
-                        FirebaseVisionBarcode.TYPE_WIFI -> {
-                            val ssid = barcode.wifi!!.ssid
-                            val password = barcode.wifi!!.password
-                            val type = barcode.wifi!!.encryptionType
-                        }
-                        FirebaseVisionBarcode.TYPE_URL -> {
-                            val title = barcode.url!!.title
-                            val url = barcode.url!!.url
-                        }
-                    }
-                }
+            for ((name, value) in response.headers) {
+                println("$name: $value")
             }
-            .addOnFailureListener {
-                // Task failed with an exception
-                // ...
-            }
+
+            println(response.body!!.string())
+        }
     }
 
+    // Copies preferences from globally shared prefs
     private fun loadPrinterPreferences() {
         val prefs = applicationContext
             .getSharedPreferences("printer_settings", Context.MODE_PRIVATE)
@@ -194,11 +187,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Prints ticket with given information
     private fun printTicket(barcode: String?) {
         Log.d(TAG, "printText() invoked")
         Thread(Runnable {
             // Configure connection
-            PrinterManager.findPrinter("QL-1110NWB", CONNECTION.BLUETOOTH)
+//            PrinterManager.findPrinter("RJ-4250WB", CONNECTION.BLUETOOTH)
+            PrinterManager.findPrinter("QL-1110NWB", CONNECTION.WIFI)
             PrinterManager.setWorkingDirectory(context = this)
             PrinterManager.loadRoll()
             val printer = PrinterManager.printer
@@ -206,7 +201,7 @@ class MainActivity : AppCompatActivity() {
             val templateBmp = assetsToBitmap("blankTicket.bmp")
             val mutableBitmap: Bitmap = templateBmp?.copy(Bitmap.Config.ARGB_8888, true)!!
 
-            val canvas = Canvas(mutableBitmap!!)
+            val canvas = Canvas(mutableBitmap)
             val textPaint = Paint()
             textPaint.setARGB(255, 0, 0, 0)
             textPaint.textAlign = Paint.Align.CENTER
@@ -232,11 +227,23 @@ class MainActivity : AppCompatActivity() {
         }).start()
     }
 
+    // Android functions
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // UI Setup
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
+
+        // Printer setup
         loadPrinterPreferences()
+
+        // Async tasks
+        GlobalScope.async {
+            lookupVin()
+        }
+
+        // Setup listeners
 
         fab.setOnClickListener { view ->
 
@@ -257,7 +264,7 @@ class MainActivity : AppCompatActivity() {
         // Handle action bar item clicks here. The action bar will
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
-        return when(item.itemId) {
+        return when (item.itemId) {
             R.id.action_settings -> true
             else -> super.onOptionsItemSelected(item)
         }
