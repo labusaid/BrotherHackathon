@@ -10,7 +10,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
@@ -32,15 +31,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
-
-    private val TAG = "MainActivity"
 
     private var barcodeScanUri: Uri? = null
 
@@ -69,7 +66,7 @@ class MainActivity : AppCompatActivity() {
         ).apply {
             // Save a file: path for use with ACTION_VIEW intents
             currentPhotoPath = absolutePath
-            Log.d(TAG, "File saved to ${absolutePath}")
+            println("File saved to ${absolutePath}")
         }
     }
 
@@ -94,7 +91,7 @@ class MainActivity : AppCompatActivity() {
                     )
                     takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
                     startActivityForResult(takePictureIntent, REQUEST_TAKE_PHOTO)
-                    Log.d(TAG, "File saved to URI: $photoURI")
+                    println("File saved to URI: $photoURI")
                     barcodeScanUri = photoURI
                 }
             }
@@ -111,7 +108,7 @@ class MainActivity : AppCompatActivity() {
                 barcodeScanUri
             )
 
-            Log.d(TAG, "Bitmap loaded: $imageBitmap")
+            println("Bitmap loaded: $imageBitmap")
             imageView.setImageBitmap(imageBitmap)
             val image = FirebaseVisionImage.fromBitmap(imageBitmap!!)
             // ML Kit barcode options (CODE_39 for VINs)
@@ -122,41 +119,61 @@ class MainActivity : AppCompatActivity() {
                 .build()
             // Create barcode detector object
             val detector = FirebaseVision.getInstance().visionBarcodeDetector
-            Log.d(TAG, "attempting to scan barcode")
+            println("attempting to scan barcode")
             val result = detector.detectInImage(image)
                 .addOnSuccessListener { barcodes ->
-                    Log.d(TAG, "${barcodes.size} barcodes successfully scanned")
+                    println("${barcodes.size} barcodes successfully scanned")
                     for (barcode in barcodes) {
                         // Task completed successfully
-                        Log.d(TAG, "barcode value: ${barcode.rawValue}")
+                        println("barcode value: ${barcode.rawValue}")
                         printTicket(barcode.rawValue)
                     }
                 }
                 .addOnFailureListener {
                     // Task failed with an exception
-                    Log.d(TAG, "could not read barcode")
+                    println("could not read barcode")
                 }
         }
     }
 
-    private suspend fun lookupVin() = withContext(Dispatchers.IO) {
+    // Calls NTHSA API with given vin and returns JSON object with info
+    private suspend fun lookupVIN(vinToLookup: String) = withContext(Dispatchers.IO) {
         val client = OkHttpClient()
 
         val request: Request = Request.Builder()
-            .url("https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/2T1BR30E46C595221?format=json")
+            .url("https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/$vinToLookup?format=json")
             .build()
 
-        val response: Response = client.newCall(request).execute()
+        var jObject = JSONObject()
 
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("Unexpected code $response")
+        client.newCall(request).execute().use { apiResponse ->
+            if (!apiResponse.isSuccessful) throw IOException("Unexpected code $apiResponse")
 
-            for ((name, value) in response.headers) {
+            for ((name, value) in apiResponse.headers) {
                 println("$name: $value")
             }
 
-            println(response.body!!.string())
+            // Create JSONObject from response body
+            jObject = JSONObject(apiResponse.body!!.string())
         }
+
+        onLookupVIN(jObject)
+    }
+
+    // lookupVIN callback
+    private fun onLookupVIN(jObject: JSONObject) {
+        //println("Make: " + jObject.get("Results"))
+        val vehicleMake = JSONObject(jObject.getJSONArray("Results").get(6).toString()).get("Value")
+        val vehicleModel = JSONObject(jObject.getJSONArray("Results").get(8).toString()).get("Value")
+        val vehicleYear = JSONObject(jObject.getJSONArray("Results").get(9).toString()).get("Value")
+        println("Make: $vehicleMake")
+        println("Model: $vehicleModel")
+        println("Year: $vehicleYear")
+    }
+
+    // Function to call lookupVIN asynchronously
+    private fun lookupVINAsync(vinToLookup: String) = GlobalScope.async {
+        lookupVIN(vinToLookup)
     }
 
     // Copies preferences from globally shared prefs
@@ -189,7 +206,7 @@ class MainActivity : AppCompatActivity() {
 
     // Prints ticket with given information
     private fun printTicket(barcode: String?) {
-        Log.d(TAG, "printText() invoked")
+        println("printText() invoked")
         Thread(Runnable {
             // Configure connection
 //            PrinterManager.findPrinter("RJ-4250WB", CONNECTION.BLUETOOTH)
@@ -214,14 +231,14 @@ class MainActivity : AppCompatActivity() {
             // Establish connection
             if (printer != null) {
                 if (printer.startCommunication()) {
-                    Log.d(TAG, "Printer communication established")
+                    println("Printer communication established")
                     // Put any code to use printer
                     val result = printer.printImage(mutableBitmap)
                     if (result.errorCode != ErrorCode.ERROR_NONE) {
-                        Log.d(TAG, "ERROR - " + result.errorCode)
+                        println("ERROR - " + result.errorCode)
                     }
                     printer.endCommunication()
-                    Log.d(TAG, "Printer communication ended")
+                    println("Printer communication ended")
                 }
             }
         }).start()
@@ -238,18 +255,16 @@ class MainActivity : AppCompatActivity() {
         // Printer setup
         loadPrinterPreferences()
 
-        // Async tasks
-        GlobalScope.async {
-            lookupVin()
-        }
+        // Test Code
+        lookupVINAsync("4T1BF1FK4CU609641")
+        lookupVINAsync("WVWAA71K08W201030")
 
         // Setup listeners
-
-        fab.setOnClickListener { view ->
+        fab.setOnClickListener {
 
         }
 
-        imageView.setOnClickListener { view ->
+        imageView.setOnClickListener {
             dispatchTakePictureIntent()
         }
     }
