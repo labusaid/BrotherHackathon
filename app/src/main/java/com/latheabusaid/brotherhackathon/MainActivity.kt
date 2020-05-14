@@ -1,5 +1,6 @@
 package com.latheabusaid.brotherhackathon
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -34,8 +35,6 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -53,14 +52,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     lateinit var currentPhotoPath: String
-
     @Throws(IOException::class)
     private fun createImageFile(): File {
         // Create an image file name
-        val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
         val storageDir: File? = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
         return File.createTempFile(
-            "BMP_${timeStamp}_", /* prefix */
+            "BMP_ToBeScanned", /* prefix */
             ".bmp", /* suffix */
             storageDir /* directory */
         ).apply {
@@ -126,7 +123,7 @@ class MainActivity : AppCompatActivity() {
                     for (barcode in barcodes) {
                         // Task completed successfully
                         println("barcode value: ${barcode.rawValue}")
-                        printTicket(barcode.rawValue)
+                        lookupVINAsync(barcode.rawValue)
                     }
                 }
                 .addOnFailureListener {
@@ -137,11 +134,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Calls NTHSA API with given vin and returns JSON object with info
-    private suspend fun lookupVIN(vinToLookup: String) = withContext(Dispatchers.IO) {
+    private suspend fun lookupVIN(vinToLookup: String?) = withContext(Dispatchers.IO) {
+
+        // 'I' seems to be improperly identified on VIN tag barcodes,
+        // simple fix to remove since no region codes (and thus valid VINs) start with 'I'
+        val vinToLookupSanitized = vinToLookup!!.removePrefix("I")
+
         val client = OkHttpClient()
 
         val request: Request = Request.Builder()
-            .url("https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/$vinToLookup?format=json")
+            .url("https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/$vinToLookupSanitized?format=json")
             .build()
 
         var jObject = JSONObject()
@@ -160,19 +162,22 @@ class MainActivity : AppCompatActivity() {
         onLookupVIN(jObject)
     }
 
-    // lookupVIN callback
+    // lookupVIN callback (parses data and handles ticket creation
     private fun onLookupVIN(jObject: JSONObject) {
-        //println("Make: " + jObject.get("Results"))
+        // Extract data
         val vehicleMake = JSONObject(jObject.getJSONArray("Results").get(6).toString()).get("Value")
         val vehicleModel = JSONObject(jObject.getJSONArray("Results").get(8).toString()).get("Value")
         val vehicleYear = JSONObject(jObject.getJSONArray("Results").get(9).toString()).get("Value")
-        println("Make: $vehicleMake")
-        println("Model: $vehicleModel")
-        println("Year: $vehicleYear")
+        val vehicleType = JSONObject(jObject.getJSONArray("Results").get(23).toString()).get("Value")
+        println("Make: $vehicleMake\nModel: $vehicleModel\nYear: $vehicleYear")
+
+        // Generate and print ticket
+        val lines = listOf<String>(vehicleYear.toString(), vehicleMake.toString(), vehicleModel.toString())
+        printBitmap(createTicket(lines))
     }
 
     // Function to call lookupVIN asynchronously
-    private fun lookupVINAsync(vinToLookup: String) = GlobalScope.async {
+    private fun lookupVINAsync(vinToLookup: String?) = GlobalScope.async {
         lookupVIN(vinToLookup)
     }
 
@@ -204,36 +209,45 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Prints ticket with given information
-    private fun printTicket(barcode: String?) {
-        println("printText() invoked")
+    // Generates ticket with given info and returns bitmap
+    private fun createTicket(linesToWrite: List<String>): Bitmap {
+        val templateBmp = assetsToBitmap("valetTicket.bmp")
+        val mutableBitmap: Bitmap = templateBmp?.copy(Bitmap.Config.ARGB_8888, true)!!
+
+        // Canvas and Paint setup
+        val canvas = Canvas(mutableBitmap)
+        val textPaint = Paint()
+        textPaint.setARGB(255, 0, 0, 0) // pure black
+        textPaint.textAlign = Paint.Align.LEFT
+        //textPaint.setTypeface()
+        textPaint.textSize = 128F
+
+        // Write text from given list of lines
+        var xPos = 200
+        var yPos = 450
+        for (textToWrite in linesToWrite) {
+            canvas.drawText(textToWrite, xPos.toFloat(), yPos.toFloat(), textPaint)
+            yPos -= ((textPaint.descent() + textPaint.ascent()) * 1.5).toInt()
+        }
+        return mutableBitmap
+    }
+
+    // Prints bitmap with hard coded settings
+    private fun printBitmap(bitmapToPrint: Bitmap) {
         Thread(Runnable {
             // Configure connection
-//            PrinterManager.findPrinter("RJ-4250WB", CONNECTION.BLUETOOTH)
-            PrinterManager.findPrinter("QL-1110NWB", CONNECTION.WIFI)
-            PrinterManager.setWorkingDirectory(context = this)
-            PrinterManager.loadRoll()
-            val printer = PrinterManager.printer
-
-            val templateBmp = assetsToBitmap("blankTicket.bmp")
-            val mutableBitmap: Bitmap = templateBmp?.copy(Bitmap.Config.ARGB_8888, true)!!
-
-            val canvas = Canvas(mutableBitmap)
-            val textPaint = Paint()
-            textPaint.setARGB(255, 0, 0, 0)
-            textPaint.textAlign = Paint.Align.CENTER
-            //textPaint.setTypeface()
-            textPaint.textSize = 40F
-            val xPos: Int = canvas.width / 2
-            val yPos = (canvas.height / 2 - (textPaint.descent() + textPaint.ascent()) / 2)
-            canvas.drawText(barcode!!, xPos.toFloat(), yPos, textPaint);
+            findPrinter("RJ-4250WB", CONNECTION.BLUETOOTH)
+//            findPrinter("QL-1110NWB", CONNECTION.WIFI)
+            PrinterManager.setWorkingDirectory(this)
+            loadRoll()
+            val printer = PrinterManager.printer // copies printer reference for easier calls
 
             // Establish connection
             if (printer != null) {
                 if (printer.startCommunication()) {
                     println("Printer communication established")
                     // Put any code to use printer
-                    val result = printer.printImage(mutableBitmap)
+                    val result = printer.printImage(bitmapToPrint)
                     if (result.errorCode != ErrorCode.ERROR_NONE) {
                         println("ERROR - " + result.errorCode)
                     }
@@ -246,22 +260,84 @@ class MainActivity : AppCompatActivity() {
 
     // Android functions
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // UI Setup
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
 
+        //        //<editor-fold desc="webView Stuff">
+//        // WebView for ticket generation
+//        val webView: WebView = findViewById(R.id.wv)
+//        webView.webViewClient = WebViewClient()
+//        webView.settings.javaScriptEnabled = true
+//        webView.settings.loadWithOverviewMode = true
+//        webView.settings.useWideViewPort = true
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+//            WebView.enableSlowWholeDocumentDraw();
+//        }
+//        val ticketHTML = "file:android_asset/valetTicket.html"
+//        // Render the HTML file on WebView
+//        webView.loadUrl(ticketHTML)
+//
+//        webView.webViewClient = object : WebViewClient() {
+//            override fun onPageFinished(view: WebView, url: String) {
+//                // do your stuff here
+//                webView.measure(
+//                    View.MeasureSpec.makeMeasureSpec(
+//                        View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED
+//                    ),
+//                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+//                )
+//                webView.layout(
+//                    0, 0, webView.measuredWidth,
+//                    webView.measuredHeight
+//                )
+//                webView.isDrawingCacheEnabled = true
+//                webView.buildDrawingCache()
+//                val bm = Bitmap.createBitmap(
+//                    webView.measuredWidth,
+//                    webView.measuredHeight, Bitmap.Config.ARGB_8888
+//                )
+//                val bigcanvas = Canvas(bm!!)
+//                val paint = Paint()
+//                val iHeight = bm.height
+//                bigcanvas.drawBitmap(bm, 0f, iHeight.toFloat(), paint)
+//                webView.draw(bigcanvas)
+//                println(
+//                    "1111111111111111111111="
+//                            + bigcanvas.width
+//                )
+//                println(
+//                    "22222222222222222222222="
+//                            + bigcanvas.height
+//                )
+//                try {
+//                    val path =
+//                        Environment.getExternalStorageDirectory()
+//                            .toString()
+//                    var fOut: OutputStream? = null
+//                    val file = File(path, "/aaaa.png")
+//                    fOut = FileOutputStream(file)
+//                    bm.compress(Bitmap.CompressFormat.PNG, 50, fOut)
+//                    fOut.flush()
+//                    fOut.close()
+//                    bm.recycle()
+//                } catch (e: Exception) {
+//                    e.printStackTrace()
+//                }
+//            }
+//        }
+//
+//        println("Generating Ticket")
+//        //</editor-fold>
+
         // Printer setup
         loadPrinterPreferences()
 
-        // Test Code
-        lookupVINAsync("4T1BF1FK4CU609641")
-        lookupVINAsync("WVWAA71K08W201030")
-
         // Setup listeners
         fab.setOnClickListener {
-
         }
 
         imageView.setOnClickListener {
