@@ -2,20 +2,24 @@ package com.latheabusaid.brotherhackathon
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.net.Uri
 import android.os.Bundle
-import android.os.Environment
-import android.provider.MediaStore
+import android.speech.RecognizerIntent
 import android.util.Size
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.ListView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -24,7 +28,6 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.LifecycleOwner
 import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import com.google.common.util.concurrent.ListenableFuture
@@ -47,10 +50,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executor
-import java.util.concurrent.ThreadPoolExecutor
 
 class MainActivity : AppCompatActivity() {
 
@@ -193,6 +194,11 @@ class MainActivity : AppCompatActivity() {
         }).start()
     }
 
+    var mList: ListView? = null
+    var speakButton: Button? = null
+
+    val VOICE_RECOGNITION_REQUEST_CODE = 1234
+
     // Activity onCreate
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -224,8 +230,39 @@ class MainActivity : AppCompatActivity() {
         // Printer setup
         loadPrinterPreferences()
 
-        // Setup listeners
-        imageView.setOnClickListener {
+        btn_speak.setOnClickListener {
+            startVoiceRecognitionActivity()
+        }
+
+        voiceinputbuttons()
+    }
+
+    fun informationMenu() {
+        startActivity(Intent("android.intent.action.INFOSCREEN"))
+    }
+
+    fun voiceinputbuttons() {
+        speakButton = findViewById<View>(R.id.btn_speak) as Button
+        mList = findViewById<View>(R.id.list) as ListView
+    }
+
+    fun startVoiceRecognitionActivity() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        intent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+        )
+        intent.putExtra(
+            RecognizerIntent.EXTRA_PROMPT,
+            "Speech recognition demo"
+        )
+        startActivityForResult(intent, VOICE_RECOGNITION_REQUEST_CODE)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == VOICE_RECOGNITION_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            println(data)
         }
     }
 
