@@ -65,89 +65,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    lateinit var currentPhotoPath: String
-
-    @Throws(IOException::class)
-    private fun createImageFile(): File {
-        // Create an image file name
-        val storageDir: File? = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-        return File.createTempFile(
-            "BMP_ToBeScanned", /* prefix */
-            ".bmp", /* suffix */
-            storageDir /* directory */
-        ).apply {
-            // Save a file: path for use with ACTION_VIEW intents
-            currentPhotoPath = absolutePath
-            println("File saved to ${absolutePath}")
-        }
-    }
-
-    // Dispatches photo intent
-    val REQUEST_TAKE_PHOTO = 1
-    private var barcodeScanUri: Uri? = null
-    private fun dispatchTakePictureIntent() {
-        Intent(MediaStore.ACTION_IMAGE_CAPTURE).also { takePictureIntent ->
-            // Ensure that there's a camera activity to handle the intent
-            takePictureIntent.resolveActivity(packageManager)?.also {
-                // Create the File where the photo should go
-                val photoFile: File? = try {
-                    createImageFile()
-                } catch (ex: IOException) {
-                    // Error occurred while creating the File
-                    null
-                }
-                // Continue only if the File was successfully created
-                photoFile?.also {
-                    val photoURI: Uri = FileProvider.getUriForFile(
-                        this, "com.latheabusaid.brotherhackathon.fileprovider", it
-                    )
-                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
-                    startActivityForResult(takePictureIntent, REQUEST_TAKE_PHOTO)
-                    println("File saved to URI: $photoURI")
-                    barcodeScanUri = photoURI
-                }
-            }
-        }
-    }
-
-    // Captures thumbnail from camera intent
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_OK) {
-
-            val imageBitmap = MediaStore.Images.Media.getBitmap(
-                this.contentResolver,
-                barcodeScanUri
-            )
-
-            println("Bitmap loaded: $imageBitmap")
-            imageView.setImageBitmap(imageBitmap)
-            val image = FirebaseVisionImage.fromBitmap(imageBitmap!!)
-            // ML Kit barcode options (CODE_39 for VINs)
-            val options = FirebaseVisionBarcodeDetectorOptions.Builder()
-                .setBarcodeFormats(
-                    FirebaseVisionBarcode.FORMAT_CODE_39
-                )
-                .build()
-            // Create barcode detector object
-            val detector = FirebaseVision.getInstance().visionBarcodeDetector
-            println("attempting to scan barcode")
-            val result = detector.detectInImage(image)
-                .addOnSuccessListener { barcodes ->
-                    println("${barcodes.size} barcodes successfully scanned")
-                    for (barcode in barcodes) {
-                        // Task completed successfully
-                        println("barcode value: ${barcode.rawValue}")
-                        lookupVINAsync(barcode.rawValue)
-                    }
-                }
-                .addOnFailureListener {
-                    // Task failed with an exception
-                    println("could not read barcode")
-                }
-        }
-    }
-
     // Calls NTHSA API with given vin and returns JSON object with info
     private suspend fun lookupVIN(vinToLookup: String?) = withContext(Dispatchers.IO) {
 
@@ -309,7 +226,6 @@ class MainActivity : AppCompatActivity() {
 
         // Setup listeners
         imageView.setOnClickListener {
-            dispatchTakePictureIntent()
         }
     }
 
@@ -363,7 +279,7 @@ class MainActivity : AppCompatActivity() {
 
         // Image analysis
         val imageAnalysis = ImageAnalysis.Builder()
-            .setTargetResolution(Size(1280, 720))
+            .setTargetResolution(Size(1920, 1080))
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
 
