@@ -1,8 +1,10 @@
 package com.latheabusaid.brotherhackathon
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -14,8 +16,16 @@ import android.provider.MediaStore
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.view.PreviewView
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.LifecycleOwner
 import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
+import com.google.common.util.concurrent.ListenableFuture
 import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcode
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetectorOptions
@@ -38,8 +48,6 @@ import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
 
-    private var barcodeScanUri: Uri? = null
-
     // Method to get a bitmap from assets
     private fun assetsToBitmap(fileName: String): Bitmap? {
         return try {
@@ -52,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     lateinit var currentPhotoPath: String
+
     @Throws(IOException::class)
     private fun createImageFile(): File {
         // Create an image file name
@@ -69,7 +78,7 @@ class MainActivity : AppCompatActivity() {
 
     // Dispatches photo intent
     val REQUEST_TAKE_PHOTO = 1
-
+    private var barcodeScanUri: Uri? = null
     private fun dispatchTakePictureIntent() {
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).also { takePictureIntent ->
             // Ensure that there's a camera activity to handle the intent
@@ -169,7 +178,7 @@ class MainActivity : AppCompatActivity() {
         val vehicleModel = JSONObject(jObject.getJSONArray("Results").get(8).toString()).get("Value")
         val vehicleYear = JSONObject(jObject.getJSONArray("Results").get(9).toString()).get("Value")
         val vehicleType = JSONObject(jObject.getJSONArray("Results").get(23).toString()).get("Value")
-        println("Make: $vehicleMake\nModel: $vehicleModel\nYear: $vehicleYear")
+        println("Make: $vehicleMake\nModel: $vehicleModel\nYear: $vehicleYear\n $vehicleType")
 
         // Generate and print ticket
         val lines = listOf<String>(vehicleYear.toString(), vehicleMake.toString(), vehicleModel.toString())
@@ -258,91 +267,97 @@ class MainActivity : AppCompatActivity() {
         }).start()
     }
 
-    // Android functions
-
-    @SuppressLint("SetJavaScriptEnabled")
+    // Activity onCreate
+    private lateinit var cameraProviderFuture : ListenableFuture<ProcessCameraProvider>
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Check permissions
+        if (ContextCompat.checkSelfPermission(this.applicationContext,
+                Manifest.permission.CAMERA)
+            != PackageManager.PERMISSION_GRANTED) {
+
+            // Permission is not granted
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.CAMERA)) {
+                // Show an explanation to the user *asynchronously* -- don't block
+                // this thread waiting for the user's response! After the user
+                // sees the explanation, try again to request the permission.
+            } else {
+                println("Requesting camera permission")
+                // No explanation needed, we can request the permission.
+                ActivityCompat.requestPermissions(this,
+                    arrayOf(Manifest.permission.CAMERA), MY_PERMISSIONS_REQUEST_CAMERA
+                )
+
+                // MY_PERMISSIONS_REQUEST_READ_CONTACTS is an
+                // app-defined int constant. The callback method gets the
+                // result of the request.
+            }
+        } else {
+            // Permission has already been granted
+            cameraSetup()
+        }
+
         // UI Setup
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
-
-        //        //<editor-fold desc="webView Stuff">
-//        // WebView for ticket generation
-//        val webView: WebView = findViewById(R.id.wv)
-//        webView.webViewClient = WebViewClient()
-//        webView.settings.javaScriptEnabled = true
-//        webView.settings.loadWithOverviewMode = true
-//        webView.settings.useWideViewPort = true
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-//            WebView.enableSlowWholeDocumentDraw();
-//        }
-//        val ticketHTML = "file:android_asset/valetTicket.html"
-//        // Render the HTML file on WebView
-//        webView.loadUrl(ticketHTML)
-//
-//        webView.webViewClient = object : WebViewClient() {
-//            override fun onPageFinished(view: WebView, url: String) {
-//                // do your stuff here
-//                webView.measure(
-//                    View.MeasureSpec.makeMeasureSpec(
-//                        View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED
-//                    ),
-//                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-//                )
-//                webView.layout(
-//                    0, 0, webView.measuredWidth,
-//                    webView.measuredHeight
-//                )
-//                webView.isDrawingCacheEnabled = true
-//                webView.buildDrawingCache()
-//                val bm = Bitmap.createBitmap(
-//                    webView.measuredWidth,
-//                    webView.measuredHeight, Bitmap.Config.ARGB_8888
-//                )
-//                val bigcanvas = Canvas(bm!!)
-//                val paint = Paint()
-//                val iHeight = bm.height
-//                bigcanvas.drawBitmap(bm, 0f, iHeight.toFloat(), paint)
-//                webView.draw(bigcanvas)
-//                println(
-//                    "1111111111111111111111="
-//                            + bigcanvas.width
-//                )
-//                println(
-//                    "22222222222222222222222="
-//                            + bigcanvas.height
-//                )
-//                try {
-//                    val path =
-//                        Environment.getExternalStorageDirectory()
-//                            .toString()
-//                    var fOut: OutputStream? = null
-//                    val file = File(path, "/aaaa.png")
-//                    fOut = FileOutputStream(file)
-//                    bm.compress(Bitmap.CompressFormat.PNG, 50, fOut)
-//                    fOut.flush()
-//                    fOut.close()
-//                    bm.recycle()
-//                } catch (e: Exception) {
-//                    e.printStackTrace()
-//                }
-//            }
-//        }
-//
-//        println("Generating Ticket")
-//        //</editor-fold>
 
         // Printer setup
         loadPrinterPreferences()
 
         // Setup listeners
-        fab.setOnClickListener {
-        }
-
         imageView.setOnClickListener {
             dispatchTakePictureIntent()
         }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int,
+                                            permissions: Array<String>, grantResults: IntArray) {
+        when (requestCode) {
+            MY_PERMISSIONS_REQUEST_CAMERA -> {
+                // If request is cancelled, the result arrays are empty.
+                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                    // permission was granted, yay! Do the
+                    // contacts-related task you need to do.
+                    cameraSetup()
+                } else {
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+                }
+                return
+            }
+
+            // Add other 'when' lines to check for other
+            // permissions this app might request.
+            else -> {
+                // Ignore all other requests.
+            }
+        }
+    }
+
+    fun cameraSetup() {
+        // Camera setup
+        cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        // Check cameraProvider availability
+        cameraProviderFuture.addListener(Runnable {
+            val cameraProvider = cameraProviderFuture.get()
+            bindPreview(cameraProvider)
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    fun bindPreview(cameraProvider : ProcessCameraProvider) {
+        var preview : Preview = Preview.Builder()
+            .build()
+
+        var cameraSelector : CameraSelector = CameraSelector.Builder()
+            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+            .build()
+
+        var camera = cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, preview)
+
+        preview.setSurfaceProvider(previewView.createSurfaceProvider(camera.cameraInfo))
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -359,5 +374,9 @@ class MainActivity : AppCompatActivity() {
             R.id.action_settings -> true
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    companion object {
+        const val MY_PERMISSIONS_REQUEST_CAMERA: Int = 10
     }
 }

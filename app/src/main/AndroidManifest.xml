@@ -3,6 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.latheabusaid.brotherhackathon" >
 
+    <!-- Camera Permissions -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
     <!-- For Wi-Fi -->
@@ -16,6 +19,9 @@
     <uses-feature android:name="android.hardware.camera"
         android:required="true"
         tools:ignore="UnsupportedChromeOsHardware" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
 
     <application
         android:allowBackup="true"
