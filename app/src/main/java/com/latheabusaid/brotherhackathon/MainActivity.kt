@@ -13,12 +13,14 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Size
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
-import androidx.camera.view.PreviewView
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -28,8 +30,10 @@ import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcode
+import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetector
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetectorOptions
 import com.google.firebase.ml.vision.common.FirebaseVisionImage
+import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata
 import com.latheabusaid.brotherhackathon.PrinterManager.CONNECTION
 import com.latheabusaid.brotherhackathon.PrinterManager.findPrinter
 import com.latheabusaid.brotherhackathon.PrinterManager.loadLabel
@@ -45,6 +49,8 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.Executor
+import java.util.concurrent.ThreadPoolExecutor
 
 class MainActivity : AppCompatActivity() {
 
@@ -175,13 +181,16 @@ class MainActivity : AppCompatActivity() {
     private fun onLookupVIN(jObject: JSONObject) {
         // Extract data
         val vehicleMake = JSONObject(jObject.getJSONArray("Results").get(6).toString()).get("Value")
-        val vehicleModel = JSONObject(jObject.getJSONArray("Results").get(8).toString()).get("Value")
+        val vehicleModel =
+            JSONObject(jObject.getJSONArray("Results").get(8).toString()).get("Value")
         val vehicleYear = JSONObject(jObject.getJSONArray("Results").get(9).toString()).get("Value")
-        val vehicleType = JSONObject(jObject.getJSONArray("Results").get(23).toString()).get("Value")
+        val vehicleType =
+            JSONObject(jObject.getJSONArray("Results").get(23).toString()).get("Value")
         println("Make: $vehicleMake\nModel: $vehicleModel\nYear: $vehicleYear\n $vehicleType")
 
         // Generate and print ticket
-        val lines = listOf<String>(vehicleYear.toString(), vehicleMake.toString(), vehicleModel.toString())
+        val lines =
+            listOf<String>(vehicleYear.toString(), vehicleMake.toString(), vehicleModel.toString())
         printBitmap(createTicket(lines))
     }
 
@@ -268,36 +277,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Activity onCreate
-    private lateinit var cameraProviderFuture : ListenableFuture<ProcessCameraProvider>
+    private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // Check permissions
-        if (ContextCompat.checkSelfPermission(this.applicationContext,
-                Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(
+                this.applicationContext,
+                Manifest.permission.CAMERA
+            )
+            != PackageManager.PERMISSION_GRANTED
+        ) {
 
-            // Permission is not granted
-            // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.CAMERA)) {
-                // Show an explanation to the user *asynchronously* -- don't block
-                // this thread waiting for the user's response! After the user
-                // sees the explanation, try again to request the permission.
-            } else {
-                println("Requesting camera permission")
-                // No explanation needed, we can request the permission.
-                ActivityCompat.requestPermissions(this,
-                    arrayOf(Manifest.permission.CAMERA), MY_PERMISSIONS_REQUEST_CAMERA
-                )
-
-                // MY_PERMISSIONS_REQUEST_READ_CONTACTS is an
-                // app-defined int constant. The callback method gets the
-                // result of the request.
-            }
+            println("Requesting camera permission")
+            // No explanation needed, we can request the permission.
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.CAMERA), MY_PERMISSIONS_REQUEST_CAMERA
+            )
         } else {
             // Permission has already been granted
-            cameraSetup()
+            startCamera()
         }
 
         // UI Setup
@@ -313,18 +313,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int,
-                                            permissions: Array<String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
         when (requestCode) {
             MY_PERMISSIONS_REQUEST_CAMERA -> {
                 // If request is cancelled, the result arrays are empty.
                 if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                    // permission was granted, yay! Do the
-                    // contacts-related task you need to do.
-                    cameraSetup()
+                    // permission was granted
+                    startCamera()
                 } else {
-                    // permission denied, boo! Disable the
-                    // functionality that depends on this permission.
+                    // permission denied
                 }
                 return
             }
@@ -337,28 +338,93 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun cameraSetup() {
+    // Simple Executor for running on a new Thread
+    internal class ThreadPerTaskExecutor : Executor {
+        override fun execute(r: Runnable?) {
+            Thread(r).start()
+        }
+    }
+
+    fun startCamera() {
+        println("starting camera")
         // Camera setup
         cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         // Check cameraProvider availability
         cameraProviderFuture.addListener(Runnable {
             val cameraProvider = cameraProviderFuture.get()
-            bindPreview(cameraProvider)
+            bindCamera(cameraProvider)
         }, ContextCompat.getMainExecutor(this))
     }
 
-    fun bindPreview(cameraProvider : ProcessCameraProvider) {
-        var preview : Preview = Preview.Builder()
+    private fun bindCamera(cameraProvider: ProcessCameraProvider) {
+        println("binding camera")
+        val preview: Preview = Preview.Builder()
             .build()
 
-        var cameraSelector : CameraSelector = CameraSelector.Builder()
+        // Image analysis
+        val imageAnalysis = ImageAnalysis.Builder()
+            .setTargetResolution(Size(1280, 720))
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+
+        val cameraSelector: CameraSelector = CameraSelector.Builder()
             .requireLensFacing(CameraSelector.LENS_FACING_BACK)
             .build()
 
-        var camera = cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, preview)
+        imageAnalysis.setAnalyzer(ThreadPerTaskExecutor(), vinAnalyzer())
+
+        val camera = cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, imageAnalysis, preview)
 
         preview.setSurfaceProvider(previewView.createSurfaceProvider(camera.cameraInfo))
     }
+
+    private class vinAnalyzer : ImageAnalysis.Analyzer {
+        private val vinDetector: FirebaseVisionBarcodeDetector by lazy {
+            println("vinAnalyzer instantiated")
+            // ML Kit barcode options (CODE_39 for VINs)
+            val options = FirebaseVisionBarcodeDetectorOptions.Builder()
+                .setBarcodeFormats(
+                    FirebaseVisionBarcode.FORMAT_CODE_39
+                )
+                .build()
+            FirebaseVision.getInstance().getVisionBarcodeDetector(options)
+        }
+
+        private fun degreesToFirebaseRotation(degrees: Int): Int = when(degrees) {
+            0 -> FirebaseVisionImageMetadata.ROTATION_0
+            90 -> FirebaseVisionImageMetadata.ROTATION_90
+            180 -> FirebaseVisionImageMetadata.ROTATION_180
+            270 -> FirebaseVisionImageMetadata.ROTATION_270
+            else -> throw Exception("Rotation must be 0, 90, 180, or 270.")
+        }
+
+        @SuppressLint("UnsafeExperimentalUsageError")
+        override fun analyze(imageProxy: ImageProxy) {
+            val degrees = imageProxy.imageInfo.rotationDegrees
+            val mediaImage = imageProxy.image
+            val imageRotation = degreesToFirebaseRotation(degrees)
+            if (mediaImage != null) {
+                val image = FirebaseVisionImage.fromMediaImage(mediaImage, imageRotation)
+                // Pass image to an ML Kit Vision API
+                val result = vinDetector.detectInImage(image)
+                    .addOnSuccessListener { barcodes ->
+                        //println("${barcodes.size} barcodes successfully scanned") // spammy debug info
+                        for (barcode in barcodes) {
+                            // Task completed successfully
+                            println("barcode value: ${barcode.rawValue}")
+//                            lookupVINAsync(barcode.rawValue)
+                        }
+                    }
+                    .addOnFailureListener {
+                        // Task failed with an exception
+                        println("could not read barcode")
+                    }
+            }
+            // Manually close to prevent stalling
+            imageProxy.close()
+        }
+    }
+
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         // Inflate the menu; this adds items to the action bar if it is present.
