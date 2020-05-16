@@ -31,22 +31,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- For firebase ML -->
-        <meta-data
-            android:name="com.google.firebase.ml.vision.DEPENDENCIES"
-            android:value="barcode" />
-        <!-- To use multiple models: android:value="barcode,model2,model3" -->
-
-        <!-- File provider for saving photos -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="com.latheabusaid.brotherhackathon.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
 
     </application>
 </manifest>

@@ -12,8 +12,8 @@ import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.view.Menu
 import android.view.MenuItem
-import android.view.View
-import android.widget.TextView
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import androidx.appcompat.app.AppCompatActivity
 import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import com.latheabusaid.brotherhackathon.PrinterManager.CONNECTION
@@ -120,8 +120,9 @@ class MainActivity : AppCompatActivity() {
 
     var mySensorManager: SensorManager? = null
     var myProximitySensor: Sensor? = null
-
     var proximitySensorEventListener: SensorEventListener = object : SensorEventListener {
+        var timeStamp = System.currentTimeMillis()
+
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
         }
 
@@ -129,10 +130,14 @@ class MainActivity : AppCompatActivity() {
             if (event.sensor.type == Sensor.TYPE_PROXIMITY) {
                 if (event.values[0] == 0F) {
                     // On proximity state changed to close
-//                    println("Near")
+                    timeStamp = System.currentTimeMillis()
                 } else {
                     // On proximity state changed to far
-                    startVoiceRecognitionActivity()
+                    val elapsedTime: Long = System.currentTimeMillis() - timeStamp
+                    // Time between events in milliseconds
+                    if (elapsedTime <= 500) {
+                        startVoiceRecognitionActivity()
+                    }
                 }
             }
         }
@@ -142,26 +147,25 @@ class MainActivity : AppCompatActivity() {
     // Activity onCreate
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-//
-//        // Check permissions
-//        if (ContextCompat.checkSelfPermission(
-//                this.applicationContext,
-//                Manifest.permission.CAMERA
-//            )
-//            != PackageManager.PERMISSION_GRANTED
-//        ) {
-//
-//            println("Requesting camera permission")
-//            // No explanation needed, we can request the permission.
-//            ActivityCompat.requestPermissions(
-//                this,
-//                arrayOf(Manifest.permission.CAMERA), MY_PERMISSIONS_REQUEST_CAMERA
-//            )
-//        } else {
-//            // Permission has already been granted
-//            startCamera()
-//        }
 
+        // UI Setup
+        setContentView(R.layout.activity_main)
+        setSupportActionBar(toolbar)
+
+        val spinner: Spinner = findViewById(R.id.planets_spinner)
+        // Create an ArrayAdapter using the string array and a default spinner layout
+        ArrayAdapter.createFromResource(
+            this,
+            R.array.planets_array,
+            android.R.layout.simple_spinner_item
+        ).also { adapter ->
+            // Specify the layout to use when the list of choices appears
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            // Apply the adapter to the spinner
+            spinner.adapter = adapter
+        }
+
+        // Proximity sensor stuff
         mySensorManager = getSystemService(
             Context.SENSOR_SERVICE
         ) as SensorManager
@@ -179,18 +183,12 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        // UI Setup
-        setContentView(R.layout.activity_main)
-        setSupportActionBar(toolbar)
-
         // Printer setup
         loadPrinterPreferences()
 
         btn_speak.setOnClickListener {
             startVoiceRecognitionActivity()
         }
-
-        //speakButton = findViewById<View>(R.id.btn_speak) as Button
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

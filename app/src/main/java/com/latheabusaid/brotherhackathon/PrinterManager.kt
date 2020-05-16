@@ -30,7 +30,6 @@ object PrinterManager {
     val supportedModels = arrayOf(
         "QL-820NWB",
         "QL-1110NWB",
-        "RJ-2150",
         "RJ-4250WB",
         "PJ-763",
         "PJ-763MFi",
@@ -41,7 +40,6 @@ object PrinterManager {
     private val ROLLS = arrayOf(
         "DK-2251 (2.4\")",
         "DK-2205 (2.4\")",
-        "RDQ03U1 (2\" x 4\")",
         "RD-M01E5 (4\")",
         "A4", "A4", "A4"
     )
@@ -50,7 +48,6 @@ object PrinterManager {
     private val LABELS = arrayOf(
         "DK-1201 (1.14\" x 3.5\")",
         "DK-1247 (4.07\" x 6.4\")",
-        "RDQ01U1 (2\" x 1\")",
         "RD-M03E1 (4\" x 6\")",  // "RD-M06E1"
         "LETTER", "LETTER", "LETTER"
     )
@@ -165,7 +162,7 @@ object PrinterManager {
                 margins
             )
         } else {
-            val height = 76f
+            val height = 152f
             CustomPaperInfo.newCustomDiaCutPaper(
                 info!!.printerModel,
                 Unit.Mm,
