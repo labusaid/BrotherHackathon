@@ -9,10 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.net.Uri
 import android.os.Bundle
-import android.os.Environment
-import android.provider.MediaStore
 import android.util.Size
 import android.view.Menu
 import android.view.MenuItem
@@ -24,7 +21,6 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.LifecycleOwner
 import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import com.google.common.util.concurrent.ListenableFuture
@@ -47,10 +43,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executor
-import java.util.concurrent.ThreadPoolExecutor
 
 class MainActivity : AppCompatActivity() {
 
