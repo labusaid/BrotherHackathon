@@ -26,10 +26,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.IgnoreExtraProperties
-import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.*
 import com.google.firebase.database.ktx.database
 import com.google.firebase.database.ktx.getValue
 import com.google.firebase.ktx.Firebase
@@ -62,6 +59,9 @@ import java.io.IOException
 import java.util.concurrent.Executor
 
 class MainActivity : AppCompatActivity() {
+
+    // Firebase reference
+    private val database: DatabaseReference = Firebase.database.reference
 
     // Method to get a bitmap from assets
     private fun assetsToBitmap(fileName: String): Bitmap? {
@@ -164,6 +164,8 @@ class MainActivity : AppCompatActivity() {
         val barcodeEncoder = BarcodeEncoder()
         val qrCodeBitmap: Bitmap = barcodeEncoder.createBitmap(bitMatrix)
 
+        database.child("vehicle_inventory").child(newVehicle.Vin!!).setValue(newVehicle)
+
         val templateBmp = assetsToBitmap("valetTicket.bmp")
         val mutableBitmap: Bitmap = templateBmp?.copy(Bitmap.Config.ARGB_8888, true)!!
 
@@ -176,7 +178,7 @@ class MainActivity : AppCompatActivity() {
         textPaint.textSize = 128F
 
         // Write text from given list of lines
-        var xPos = 200f
+        val xPos = 200f
         var yPos = 450f
         // writes first 3 lines of text
         canvas.drawText(newVehicle.Year!!, xPos, yPos, textPaint)
@@ -312,29 +314,6 @@ class MainActivity : AppCompatActivity() {
             println("Current VIN is: $detectedVin")
             lookupVINAsync(detectedVin)
         }
-
-        // Firebase setup
-        // Write a message to the database
-        val database = Firebase.database
-        val myRef = database.getReference("message")
-
-        myRef.setValue("Hello, World!")
-
-        // Read from the database
-        myRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(dataSnapshot: DataSnapshot) {
-                // This method is called once with the initial value and again
-                // whenever data at this location is updated.
-                val value = dataSnapshot.getValue<String>()
-                println("Value is: $value")
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Failed to read value
-                println("Failed to read value." + error.toException())
-            }
-        })
-
     }
 
     @IgnoreExtraProperties
