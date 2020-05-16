@@ -28,6 +28,7 @@ import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.IgnoreExtraProperties
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.ktx.database
 import com.google.firebase.database.ktx.getValue
@@ -40,7 +41,6 @@ import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
-import com.google.zxing.WriterException
 import com.google.zxing.common.BitMatrix
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import com.latheabusaid.brotherhackathon.GlobalState.Companion.detectedVin
@@ -105,19 +105,20 @@ class MainActivity : AppCompatActivity() {
 
     // lookupVIN callback (parses data and handles ticket creation
     private fun onLookupVIN(jObject: JSONObject) {
+        println("Creating new vehicle object")
         // Extract data
-        val vehicleMake = JSONObject(jObject.getJSONArray("Results").get(6).toString()).get("Value")
-        val vehicleModel =
-            JSONObject(jObject.getJSONArray("Results").get(8).toString()).get("Value")
-        val vehicleYear = JSONObject(jObject.getJSONArray("Results").get(9).toString()).get("Value")
-        val vehicleType =
-            JSONObject(jObject.getJSONArray("Results").get(23).toString()).get("Value")
-        println("Make: $vehicleMake\nModel: $vehicleModel\nYear: $vehicleYear\n $vehicleType")
+        val newVehicle = Vehicle(
+            JSONObject(jObject.getJSONArray("Results").get(6).toString()).get("Value") as String?,
+            JSONObject(jObject.getJSONArray("Results").get(8).toString()).get("Value") as String?,
+            JSONObject(jObject.getJSONArray("Results").get(9).toString()).get("Value") as String?,
+            JSONObject(jObject.getJSONArray("Results").get(23).toString()).get("Value") as String?,
+            "None"
+        )
+
+        println("newVehicle: $newVehicle")
 
         // Generate and print ticket
-        val lines =
-            listOf<String>(vehicleYear.toString(), vehicleMake.toString(), vehicleModel.toString())
-        printBitmap(createTicket(lines))
+        printBitmap(createTicket(newVehicle))
     }
 
     // Function to call lookupVIN asynchronously
@@ -154,11 +155,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Generates ticket with given info and returns bitmap
-    private fun createTicket(linesToWrite: List<String>): Bitmap {
+    private fun createTicket(newVehicle: Vehicle): Bitmap {
         println("Creating new ticket")
         // generate QR code
         val multiFormatWriter = MultiFormatWriter()
-        val bitMatrix: BitMatrix = multiFormatWriter.encode("testTeszcxzkcxnlkznxclkxt", BarcodeFormat.QR_CODE, 200, 200)
+        val bitMatrix: BitMatrix =
+            multiFormatWriter.encode("testTeszcxzkcxnlkznxclkxt", BarcodeFormat.QR_CODE, 200, 200)
         val barcodeEncoder = BarcodeEncoder()
         val qrCodeBitmap: Bitmap = barcodeEncoder.createBitmap(bitMatrix)
 
@@ -177,19 +179,21 @@ class MainActivity : AppCompatActivity() {
         var xPos = 200f
         var yPos = 450f
         // writes first 3 lines of text
-        for (textToWrite in linesToWrite.take(3)) {
-            canvas.drawText(textToWrite, xPos, yPos, textPaint)
-            yPos -= ((textPaint.descent() + textPaint.ascent()) * 1.5).toInt()
-        }
+        canvas.drawText(newVehicle.Year!!, xPos, yPos, textPaint)
+        yPos -= ((textPaint.descent() + textPaint.ascent()) * 1.5).toInt()
+        canvas.drawText(newVehicle.Make!!, xPos, yPos, textPaint)
+        yPos -= ((textPaint.descent() + textPaint.ascent()) * 1.5).toInt()
+        canvas.drawText(newVehicle.Model!!, xPos, yPos, textPaint)
 
         // Draw QR code on ticket
-        canvas.drawBitmap(qrCodeBitmap!!, Rect(25, 25, 175, 175), Rect(1200, 300, 1800, 900), null)
+        canvas.drawBitmap(qrCodeBitmap, Rect(25, 25, 175, 175), Rect(1200, 300, 1800, 900), null)
 
         return mutableBitmap
     }
 
     var selectedPrinterModel: String? = null
     var selectedConnectionType: CONNECTION = CONNECTION.BLUETOOTH
+
     // Prints bitmap with hard coded settings
     private fun printBitmap(bitmapToPrint: Bitmap) {
         Thread(Runnable {
@@ -260,7 +264,12 @@ class MainActivity : AppCompatActivity() {
         printerSpinner.adapter = printerSpinnerAdapter
         printerSpinner.onItemSelectedListener = object :
             AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>, view: View, position: Int, id: Long) {
+            override fun onItemSelected(
+                parent: AdapterView<*>,
+                view: View,
+                position: Int,
+                id: Long
+            ) {
                 selectedPrinterModel = validPrinters[position]
             }
 
@@ -276,7 +285,12 @@ class MainActivity : AppCompatActivity() {
         connectionSpinner.adapter = connectionSpinnerAdapter
         connectionSpinner.onItemSelectedListener = object :
             AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>, view: View, position: Int, id: Long) {
+            override fun onItemSelected(
+                parent: AdapterView<*>,
+                view: View,
+                position: Int,
+                id: Long
+            ) {
                 when (validConnectionTypes[position]) {
                     "Bluetooth" -> selectedConnectionType = CONNECTION.BLUETOOTH
                     "Wifi" -> selectedConnectionType = CONNECTION.WIFI
@@ -322,6 +336,15 @@ class MainActivity : AppCompatActivity() {
         })
 
     }
+
+    @IgnoreExtraProperties
+    data class Vehicle(
+        var Make: String? = "None",
+        var Model: String? = "None",
+        var Year: String? = "None",
+        var Type: String? = "None",
+        var LicencePlate: String? = "None"
+    )
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -383,7 +406,12 @@ class MainActivity : AppCompatActivity() {
 
         imageAnalysis.setAnalyzer(ThreadPerTaskExecutor(), VinAnalyzer())
 
-        val camera = cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, imageAnalysis, preview)
+        val camera = cameraProvider.bindToLifecycle(
+            this as LifecycleOwner,
+            cameraSelector,
+            imageAnalysis,
+            preview
+        )
 
         preview.setSurfaceProvider(previewView.createSurfaceProvider(camera.cameraInfo))
     }
@@ -400,7 +428,7 @@ class MainActivity : AppCompatActivity() {
             FirebaseVision.getInstance().getVisionBarcodeDetector(options)
         }
 
-        private fun degreesToFirebaseRotation(degrees: Int): Int = when(degrees) {
+        private fun degreesToFirebaseRotation(degrees: Int): Int = when (degrees) {
             0 -> FirebaseVisionImageMetadata.ROTATION_0
             90 -> FirebaseVisionImageMetadata.ROTATION_90
             180 -> FirebaseVisionImageMetadata.ROTATION_180
