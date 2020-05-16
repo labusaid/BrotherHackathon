@@ -196,31 +196,6 @@ class MainActivity : AppCompatActivity() {
         }).start()
     }
 
-    private var mySensorManager: SensorManager? = null
-    private var myProximitySensor: Sensor? = null
-    var proximitySensorEventListener: SensorEventListener = object : SensorEventListener {
-        var timeStamp = System.currentTimeMillis()
-
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        }
-
-        override fun onSensorChanged(event: SensorEvent) {
-            if (event.sensor.type == Sensor.TYPE_PROXIMITY) {
-                if (event.values[0] == 0F) {
-                    // On proximity state changed to close
-                    timeStamp = System.currentTimeMillis()
-                } else {
-                    // On proximity state changed to far
-                    val elapsedTime: Long = System.currentTimeMillis() - timeStamp
-                    // Time between events in milliseconds
-                    if (elapsedTime <= 500) {
-                        startVoiceRecognitionActivity()
-                    }
-                }
-            }
-        }
-    }
-
     private val VOICE_RECOGNITION_REQUEST_CODE = 1234
 
     // Activity onCreate
@@ -294,31 +269,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-
-        // Proximity sensor stuff
-        mySensorManager = getSystemService(
-            Context.SENSOR_SERVICE
-        ) as SensorManager
-        myProximitySensor = mySensorManager!!.getDefaultSensor(
-            Sensor.TYPE_PROXIMITY
-        )
-        if (myProximitySensor == null) {
-            println("No proximity sensor found!")
-        } else {
-            mySensorManager!!.registerListener(
-                proximitySensorEventListener,
-                myProximitySensor,
-                SensorManager.SENSOR_DELAY_NORMAL
-            )
-        }
-
         // Printer setup
         loadPrinterPreferences()
 
         // Button listeners
-        btn_speak.setOnClickListener {
-            startVoiceRecognitionActivity()
-        }
     }
 
     override fun onRequestPermissionsResult(
@@ -353,7 +307,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun startCamera() {
+    private fun startCamera() {
         println("starting camera")
         // Camera setup
         cameraProviderFuture = ProcessCameraProvider.getInstance(this)
@@ -450,7 +404,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun startVoiceRecognitionActivity() {
+    private fun startVoiceRecognitionActivity() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         intent.putExtra(
             RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -458,7 +412,7 @@ class MainActivity : AppCompatActivity() {
         )
         intent.putExtra(
             RecognizerIntent.EXTRA_PROMPT,
-            "Speech recognition demo"
+            "Read Out Licence Plate"
         )
         startActivityForResult(intent, VOICE_RECOGNITION_REQUEST_CODE)
     }
@@ -470,7 +424,7 @@ class MainActivity : AppCompatActivity() {
                 data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)!!
             val mAnswer = results[0]
             println("Speech Result: $mAnswer")
-            printBitmap(createTicket(listOf(mAnswer)))
+//            printBitmap(createTicket(listOf(mAnswer)))
         }
 
     }

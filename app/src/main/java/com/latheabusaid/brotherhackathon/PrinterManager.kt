@@ -1,3 +1,6 @@
+// Credit to Lazaro Herrera for making the initial java version of this and validating most printers
+// Ported to Kotlin, cleaned up, and slightly modified by Lathe Abusaid
+
 package com.latheabusaid.brotherhackathon
 
 import android.annotation.TargetApi
@@ -27,7 +30,6 @@ object PrinterManager {
     val supportedModels = arrayOf(
         "QL-820NWB",
         "QL-1110NWB",
-        "RJ-2150",
         "RJ-4250WB",
         "PJ-763",
         "PJ-763MFi",
@@ -38,7 +40,6 @@ object PrinterManager {
     private val ROLLS = arrayOf(
         "DK-2251 (2.4\")",
         "DK-2205 (2.4\")",
-        "RDQ03U1 (2\" x 4\")",
         "RD-M01E5 (4\")",
         "A4", "A4", "A4"
     )
@@ -47,7 +48,6 @@ object PrinterManager {
     private val LABELS = arrayOf(
         "DK-1201 (1.14\" x 3.5\")",
         "DK-1247 (4.07\" x 6.4\")",
-        "RDQ01U1 (2\" x 1\")",
         "RD-M03E1 (4\" x 6\")",  // "RD-M06E1"
         "LETTER", "LETTER", "LETTER"
     )
@@ -77,10 +77,6 @@ object PrinterManager {
         BLUETOOTH, WIFI, USB
     }
     var connection: CONNECTION? = null
-    // Returns valid connection types
-    fun getSupportedConnections(): Array<CONNECTION> {
-        return CONNECTION.values()
-    }
 
     private var ctx: Context? = null
     private var done = true
@@ -97,7 +93,6 @@ object PrinterManager {
         return arrayOf()
     }
 
-//    @ReactMethod
     // Sets labelType to corresponding label type
     fun loadLabel() {
         labelType = "label"
@@ -114,7 +109,6 @@ object PrinterManager {
                     PrinterInfo.PrintMode.FIT_TO_PAGE
                 info!!.isAutoCut = true
             }
-            "RJ-2150", "RJ_2150" -> setRJ2150Paper(false)
             "RJ-4250WB", "RJ_4250WB" -> setRJ4250Paper(false)
             "PJ-763", "PJ_763", "PJ-763MFi", "PJ_763MFi", "PJ-773", "PJ_773" -> {
                 info!!.paperSize = PrinterInfo.PaperSize.LETTER
@@ -126,7 +120,6 @@ object PrinterManager {
         printer!!.printerInfo = info
     }
 
-//    @ReactMethod
     // Sets labelType to corresponding continuous roll type
     fun loadRoll() {
         labelType = "roll"
@@ -143,7 +136,6 @@ object PrinterManager {
                     PrinterInfo.PrintMode.FIT_TO_PAGE
                 info!!.isAutoCut = true
             }
-            "RJ-2150", "RJ_2150" -> setRJ2150Paper(true)
             "RJ-4250WB", "RJ_4250WB" -> setRJ4250Paper(true)
             "PJ-763", "PJ_763", "PJ-763MFi", "PJ_763MFi", "PJ-773", "PJ_773" -> {
                 info!!.paperSize = PrinterInfo.PaperSize.A4
@@ -153,19 +145,6 @@ object PrinterManager {
         }
         toastIt("Load " + labelType + " " + info!!.labelNameIndex + " " + info!!.paperSize + " " + info!!.customPaper)
         printer!!.printerInfo = info
-    }
-
-    // Copies settings from bin file for RJ2150
-    private fun setRJ2150Paper(isRoll: Boolean) {
-        info!!.customPaper =
-            ctx!!.filesDir.absolutePath + "/rj_2150_"
-        if (isRoll) {
-            info!!.customPaper += "roll.bin"
-        } else {
-            info!!.customPaper += "label.bin"
-        }
-        info!!.paperSize = PrinterInfo.PaperSize.CUSTOM
-        info!!.printMode = PrinterInfo.PrintMode.FIT_TO_PAGE
     }
 
     // Custom settings for RJ4250
@@ -183,7 +162,7 @@ object PrinterManager {
                 margins
             )
         } else {
-            val height = 152f
+            val height = 49.92f
             CustomPaperInfo.newCustomDiaCutPaper(
                 info!!.printerModel,
                 Unit.Mm,
@@ -209,14 +188,6 @@ object PrinterManager {
     // Sets context and working directory for printer SDK to use
     fun setWorkingDirectory(context: Context?) {
         ctx = context
-        raw2file(
-            "rj_2150_roll.bin",
-            R.raw.rj2150_58mm
-        )
-        raw2file(
-            "rj_2150_label.bin",
-            R.raw.rj2150_50x85mm
-        )
         info!!.workPath = ctx!!.filesDir.absolutePath + "/"
     }
 
@@ -237,7 +208,6 @@ object PrinterManager {
         done = true
     }
 
-//    @ReactMethod
     // Auto connects to printer when given model and desired connection type
     fun findPrinter(newPrinterModel: String?, newConnection: CONNECTION?) {
         printerModel = newPrinterModel
@@ -404,12 +374,8 @@ object PrinterManager {
         }
         val devices = ArrayList<BluetoothDevice>()
         for (device in pairedDevices) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            if (device.type != BluetoothDevice.DEVICE_TYPE_LE) {
                 devices.add(device)
-            } else {
-                if (device.type != BluetoothDevice.DEVICE_TYPE_LE) {
-                    devices.add(device)
-                }
             }
         }
         return devices
@@ -423,32 +389,6 @@ object PrinterManager {
 
 //        val toast = Toast.makeText(ctx, text, duration)
 //        toast.show()
-    }
-
-    // copy from raw in resource
-    private fun raw2file(fileName: String, fileID: Int) {
-        val path = ctx!!.filesDir.absolutePath + "/"
-        val newdir = File(path)
-        if (!newdir.exists()) {
-            newdir.mkdir()
-        }
-        val dstFile = File(path + fileName)
-        if (!dstFile.exists()) {
-            try {
-                val output: OutputStream
-                val input: InputStream = ctx!!.resources.openRawResource(fileID)
-                output = FileOutputStream(dstFile)
-                val defaultBufferSize = 1024 * 4
-                val buffer = ByteArray(defaultBufferSize)
-                var n: Int
-                while (-1 != input.read(buffer).also { n = it }) {
-                    output.write(buffer, 0, n)
-                }
-                input.close()
-                output.close()
-            } catch (ignored: IOException) {
-            }
-        }
     }
 }
 
