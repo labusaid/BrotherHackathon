@@ -26,6 +26,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.ktx.database
+import com.google.firebase.database.ktx.getValue
+import com.google.firebase.ktx.Firebase
 import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcode
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetector
@@ -176,13 +182,9 @@ class MainActivity : AppCompatActivity() {
             yPos -= ((textPaint.descent() + textPaint.ascent()) * 1.5).toInt()
         }
 
-        val imageView = findViewById<ImageView>(R.id.imageView)
-        imageView.setImageBitmap(qrCodeBitmap)
-
-        println("yeeted")
         // Draw QR code on ticket
         canvas.drawBitmap(qrCodeBitmap!!, Rect(25, 25, 175, 175), Rect(1200, 300, 1800, 900), null)
-        println("skeeted")
+
         return mutableBitmap
     }
 
@@ -297,6 +299,27 @@ class MainActivity : AppCompatActivity() {
             lookupVINAsync(detectedVin)
         }
 
+        // Firebase setup
+        // Write a message to the database
+        val database = Firebase.database
+        val myRef = database.getReference("message")
+
+        myRef.setValue("Hello, World!")
+
+        // Read from the database
+        myRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                // This method is called once with the initial value and again
+                // whenever data at this location is updated.
+                val value = dataSnapshot.getValue<String>()
+                println("Value is: $value")
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                // Failed to read value
+                println("Failed to read value." + error.toException())
+            }
+        })
 
     }
 

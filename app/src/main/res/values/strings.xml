@@ -2,6 +2,7 @@
     <string name="app_name">BrotherHackathon</string>
     <string name="action_settings">Settings</string>
     <string name="btn_speak">Tap for voice prompt\n (or wave hand over device)</string>
+    <string name="print_button_text">Print</string>
 
     <string-array name="printers_array">
         <item>RJ-4250WB</item>
