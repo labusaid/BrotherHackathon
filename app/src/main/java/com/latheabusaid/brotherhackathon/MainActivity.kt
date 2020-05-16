@@ -105,17 +105,17 @@ class MainActivity : AppCompatActivity() {
 
     // lookupVIN callback (parses data and handles ticket creation
     private fun onLookupVIN(jObject: JSONObject) {
-        println("Creating new vehicle object")
         // Extract data
         val newVehicle = Vehicle(
-            JSONObject(jObject.getJSONArray("Results").get(6).toString()).get("Value") as String?,
-            JSONObject(jObject.getJSONArray("Results").get(8).toString()).get("Value") as String?,
-            JSONObject(jObject.getJSONArray("Results").get(9).toString()).get("Value") as String?,
-            JSONObject(jObject.getJSONArray("Results").get(23).toString()).get("Value") as String?,
+            jObject.get("SearchCriteria").toString().removePrefix("VIN:"),
+            JSONObject(jObject.getJSONArray("Results").get(6).toString()).get("Value") as String,
+            JSONObject(jObject.getJSONArray("Results").get(8).toString()).get("Value") as String,
+            JSONObject(jObject.getJSONArray("Results").get(9).toString()).get("Value") as String,
+            JSONObject(jObject.getJSONArray("Results").get(23).toString()).get("Value") as String,
             "None"
         )
 
-        println("newVehicle: $newVehicle")
+        println("New Vehicle added: $newVehicle")
 
         // Generate and print ticket
         printBitmap(createTicket(newVehicle))
@@ -160,7 +160,7 @@ class MainActivity : AppCompatActivity() {
         // generate QR code
         val multiFormatWriter = MultiFormatWriter()
         val bitMatrix: BitMatrix =
-            multiFormatWriter.encode("testTeszcxzkcxnlkznxclkxt", BarcodeFormat.QR_CODE, 200, 200)
+            multiFormatWriter.encode("valet.latheabusaid.com/retrieve/" + newVehicle.Vin, BarcodeFormat.QR_CODE, 200, 200)
         val barcodeEncoder = BarcodeEncoder()
         val qrCodeBitmap: Bitmap = barcodeEncoder.createBitmap(bitMatrix)
 
@@ -339,6 +339,7 @@ class MainActivity : AppCompatActivity() {
 
     @IgnoreExtraProperties
     data class Vehicle(
+        var Vin: String? = "None",
         var Make: String? = "None",
         var Model: String? = "None",
         var Year: String? = "None",
