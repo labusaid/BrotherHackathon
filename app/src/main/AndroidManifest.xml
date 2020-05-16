@@ -31,7 +31,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        android:name=".globalState">
+        android:name=".GlobalState">
 
         <activity
             android:name="com.latheabusaid.brotherhackathon.MainActivity"

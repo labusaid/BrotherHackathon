@@ -50,7 +50,9 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.Executor
-import com.latheabusaid.brotherhackathon.globalState.Companion.detectedVin
+import com.latheabusaid.brotherhackathon.GlobalState.Companion.detectedVin
+import com.latheabusaid.brotherhackathon.GlobalState.Companion.onUpdateVin
+
 class MainActivity : AppCompatActivity() {
 
     // Method to get a bitmap from assets
@@ -174,8 +176,8 @@ class MainActivity : AppCompatActivity() {
             // Configure connection
             findPrinter(selectedPrinterModel, selectedConnectionType)
             PrinterManager.setWorkingDirectory(this)
-            loadLabel()
-            //loadRoll()
+            //loadLabel()
+            loadRoll()
             val printer = PrinterManager.printer // copies printer reference for easier calls
 
             // Establish connection
@@ -274,6 +276,7 @@ class MainActivity : AppCompatActivity() {
         val printButton = findViewById<Button>(R.id.print_button)
         printButton.setOnClickListener {
             println("Current VIN is: $detectedVin")
+            lookupVINAsync(detectedVin)
         }
 
 
@@ -376,7 +379,7 @@ class MainActivity : AppCompatActivity() {
                     .addOnSuccessListener { barcodes ->
                         for (barcode in barcodes) {
                             // Task completed successfully
-                            detectedVin = barcode.rawValue
+                            onUpdateVin(barcode.rawValue!!)
                         }
                     }
                     .addOnFailureListener {
@@ -436,8 +439,11 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-class globalState : Application() {
+class GlobalState : Application() {
     companion object {
         var detectedVin: String? = null
+        fun onUpdateVin(newVin: String) {
+            detectedVin = newVin
+        }
     }
 }
