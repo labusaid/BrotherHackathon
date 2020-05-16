@@ -1,4 +1,20 @@
 <resources>
     <string name="app_name">BrotherHackathon</string>
     <string name="action_settings">Settings</string>
+    <string name="btn_speak">Tap for voice prompt\n (or wave hand over device)</string>
+
+    <string-array name="printers_array">
+        <item>RJ-4250WB</item>
+        <item>QL-1110NWB</item>
+        <item>QL-820NWB</item>
+        <item>PJ-763</item>
+        <item>PJ-763MFi</item>
+        <item>PJ-773</item>
+    </string-array>
+
+    <string-array name="connections_array">
+        <item>Bluetooth</item>
+        <item>Wifi</item>
+        <item>USB</item>
+    </string-array>
 </resources>

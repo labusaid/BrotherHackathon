@@ -2,17 +2,24 @@ package com.latheabusaid.brotherhackathon
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
+import android.graphics.*
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import android.util.Size
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -161,14 +168,16 @@ class MainActivity : AppCompatActivity() {
         return mutableBitmap
     }
 
+    var selectedPrinterModel: String? = null
+    var selectedConnectionType: CONNECTION = CONNECTION.BLUETOOTH
     // Prints bitmap with hard coded settings
     private fun printBitmap(bitmapToPrint: Bitmap) {
         Thread(Runnable {
             // Configure connection
-            findPrinter("RJ-4250WB", CONNECTION.BLUETOOTH)
-//            findPrinter("QL-1110NWB", CONNECTION.WIFI)
+            findPrinter(selectedPrinterModel, selectedConnectionType)
             PrinterManager.setWorkingDirectory(this)
-            loadRoll()
+            loadLabel()
+            //loadRoll()
             val printer = PrinterManager.printer // copies printer reference for easier calls
 
             // Establish connection
@@ -186,6 +195,33 @@ class MainActivity : AppCompatActivity() {
             }
         }).start()
     }
+
+    private var mySensorManager: SensorManager? = null
+    private var myProximitySensor: Sensor? = null
+    var proximitySensorEventListener: SensorEventListener = object : SensorEventListener {
+        var timeStamp = System.currentTimeMillis()
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        }
+
+        override fun onSensorChanged(event: SensorEvent) {
+            if (event.sensor.type == Sensor.TYPE_PROXIMITY) {
+                if (event.values[0] == 0F) {
+                    // On proximity state changed to close
+                    timeStamp = System.currentTimeMillis()
+                } else {
+                    // On proximity state changed to far
+                    val elapsedTime: Long = System.currentTimeMillis() - timeStamp
+                    // Time between events in milliseconds
+                    if (elapsedTime <= 500) {
+                        startVoiceRecognitionActivity()
+                    }
+                }
+            }
+        }
+    }
+
+    private val VOICE_RECOGNITION_REQUEST_CODE = 1234
 
     // Activity onCreate
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
@@ -215,11 +251,73 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
 
+        // Printer configuration stuff
+        val validPrinters = resources.getStringArray(R.array.printers_array)
+        val validConnectionTypes = resources.getStringArray(R.array.connections_array)
+
+        val printerSpinner: Spinner = findViewById(R.id.printer_spinner)
+        val connectionSpinner: Spinner = findViewById(R.id.connection_spinner)
+
+        val printerSpinnerAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item, validPrinters
+        )
+        printerSpinner.adapter = printerSpinnerAdapter
+        printerSpinner.onItemSelectedListener = object :
+            AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View, position: Int, id: Long) {
+                selectedPrinterModel = validPrinters[position]
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>) {
+                // write code to perform some action
+            }
+        }
+
+        val connectionSpinnerAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item, validConnectionTypes
+        )
+        connectionSpinner.adapter = connectionSpinnerAdapter
+        connectionSpinner.onItemSelectedListener = object :
+            AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View, position: Int, id: Long) {
+                when (validConnectionTypes[position]) {
+                    "Bluetooth" -> selectedConnectionType = CONNECTION.BLUETOOTH
+                    "Wifi" -> selectedConnectionType = CONNECTION.WIFI
+                    "USB" -> selectedConnectionType = CONNECTION.USB
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>) {
+                // write code to perform some action
+            }
+        }
+
+
+        // Proximity sensor stuff
+        mySensorManager = getSystemService(
+            Context.SENSOR_SERVICE
+        ) as SensorManager
+        myProximitySensor = mySensorManager!!.getDefaultSensor(
+            Sensor.TYPE_PROXIMITY
+        )
+        if (myProximitySensor == null) {
+            println("No proximity sensor found!")
+        } else {
+            mySensorManager!!.registerListener(
+                proximitySensorEventListener,
+                myProximitySensor,
+                SensorManager.SENSOR_DELAY_NORMAL
+            )
+        }
+
         // Printer setup
         loadPrinterPreferences()
 
-        // Setup listeners
-        imageView.setOnClickListener {
+        // Button listeners
+        btn_speak.setOnClickListener {
+            startVoiceRecognitionActivity()
         }
     }
 
@@ -350,6 +448,31 @@ class MainActivity : AppCompatActivity() {
             R.id.action_settings -> true
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    fun startVoiceRecognitionActivity() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        intent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+        )
+        intent.putExtra(
+            RecognizerIntent.EXTRA_PROMPT,
+            "Speech recognition demo"
+        )
+        startActivityForResult(intent, VOICE_RECOGNITION_REQUEST_CODE)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == VOICE_RECOGNITION_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            val results: List<String> =
+                data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)!!
+            val mAnswer = results[0]
+            println("Speech Result: $mAnswer")
+            printBitmap(createTicket(listOf(mAnswer)))
+        }
+
     }
 
     companion object {

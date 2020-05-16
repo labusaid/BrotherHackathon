@@ -3,6 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.latheabusaid.brotherhackathon" >
 
+    <!-- Touchless Permissions -->
+    <uses-permission android:name="android.hardware.sensor.proximity"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Camera Permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
 
