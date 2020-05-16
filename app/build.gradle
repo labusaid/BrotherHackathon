@@ -66,4 +66,7 @@ dependencies {
     implementation "androidx.camera:camera-view:1.0.0-alpha10"
     // If you want to additionally use the CameraX Extensions library
     implementation "androidx.camera:camera-extensions:1.0.0-alpha10"
+    // zxing for qr code generation
+    implementation 'com.google.zxing:core:3.2.1'
+    implementation 'com.journeyapps:zxing-android-embedded:3.2.0@aar'
 }

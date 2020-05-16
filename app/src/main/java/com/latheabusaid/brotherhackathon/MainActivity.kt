@@ -7,10 +7,7 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
+import android.graphics.*
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.util.Size
@@ -35,6 +32,13 @@ import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetector
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetectorOptions
 import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.MultiFormatWriter
+import com.google.zxing.WriterException
+import com.google.zxing.common.BitMatrix
+import com.journeyapps.barcodescanner.BarcodeEncoder
+import com.latheabusaid.brotherhackathon.GlobalState.Companion.detectedVin
+import com.latheabusaid.brotherhackathon.GlobalState.Companion.onUpdateVin
 import com.latheabusaid.brotherhackathon.PrinterManager.CONNECTION
 import com.latheabusaid.brotherhackathon.PrinterManager.findPrinter
 import com.latheabusaid.brotherhackathon.PrinterManager.loadLabel
@@ -50,8 +54,6 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.Executor
-import com.latheabusaid.brotherhackathon.GlobalState.Companion.detectedVin
-import com.latheabusaid.brotherhackathon.GlobalState.Companion.onUpdateVin
 
 class MainActivity : AppCompatActivity() {
 
@@ -147,6 +149,13 @@ class MainActivity : AppCompatActivity() {
 
     // Generates ticket with given info and returns bitmap
     private fun createTicket(linesToWrite: List<String>): Bitmap {
+        println("Creating new ticket")
+        // generate QR code
+        val multiFormatWriter = MultiFormatWriter()
+        val bitMatrix: BitMatrix = multiFormatWriter.encode("testTeszcxzkcxnlkznxclkxt", BarcodeFormat.QR_CODE, 200, 200)
+        val barcodeEncoder = BarcodeEncoder()
+        val qrCodeBitmap: Bitmap = barcodeEncoder.createBitmap(bitMatrix)
+
         val templateBmp = assetsToBitmap("valetTicket.bmp")
         val mutableBitmap: Bitmap = templateBmp?.copy(Bitmap.Config.ARGB_8888, true)!!
 
@@ -159,12 +168,21 @@ class MainActivity : AppCompatActivity() {
         textPaint.textSize = 128F
 
         // Write text from given list of lines
-        var xPos = 200
-        var yPos = 450
-        for (textToWrite in linesToWrite) {
-            canvas.drawText(textToWrite, xPos.toFloat(), yPos.toFloat(), textPaint)
+        var xPos = 200f
+        var yPos = 450f
+        // writes first 3 lines of text
+        for (textToWrite in linesToWrite.take(3)) {
+            canvas.drawText(textToWrite, xPos, yPos, textPaint)
             yPos -= ((textPaint.descent() + textPaint.ascent()) * 1.5).toInt()
         }
+
+        val imageView = findViewById<ImageView>(R.id.imageView)
+        imageView.setImageBitmap(qrCodeBitmap)
+
+        println("yeeted")
+        // Draw QR code on ticket
+        canvas.drawBitmap(qrCodeBitmap!!, Rect(25, 25, 175, 175), Rect(1200, 300, 1800, 900), null)
+        println("skeeted")
         return mutableBitmap
     }
 
