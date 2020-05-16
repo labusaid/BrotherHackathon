@@ -3,23 +3,21 @@ package com.latheabusaid.brotherhackathon
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.*
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.util.Size
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.Spinner
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -52,7 +50,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.Executor
-
+import com.latheabusaid.brotherhackathon.globalState.Companion.detectedVin
 class MainActivity : AppCompatActivity() {
 
     // Method to get a bitmap from assets
@@ -226,7 +224,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
 
-        // Printer configuration stuff
+        // Printer configuration spinners
         val validPrinters = resources.getStringArray(R.array.printers_array)
         val validConnectionTypes = resources.getStringArray(R.array.connections_array)
 
@@ -272,7 +270,13 @@ class MainActivity : AppCompatActivity() {
         // Printer setup
         loadPrinterPreferences()
 
-        // Button listeners
+        // Buttons
+        val printButton = findViewById<Button>(R.id.print_button)
+        printButton.setOnClickListener {
+            println("Current VIN is: $detectedVin")
+        }
+
+
     }
 
     override fun onRequestPermissionsResult(
@@ -333,14 +337,14 @@ class MainActivity : AppCompatActivity() {
             .requireLensFacing(CameraSelector.LENS_FACING_BACK)
             .build()
 
-        imageAnalysis.setAnalyzer(ThreadPerTaskExecutor(), vinAnalyzer())
+        imageAnalysis.setAnalyzer(ThreadPerTaskExecutor(), VinAnalyzer())
 
         val camera = cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, imageAnalysis, preview)
 
         preview.setSurfaceProvider(previewView.createSurfaceProvider(camera.cameraInfo))
     }
 
-    private class vinAnalyzer : ImageAnalysis.Analyzer {
+    class VinAnalyzer : ImageAnalysis.Analyzer {
         private val vinDetector: FirebaseVisionBarcodeDetector by lazy {
             println("vinAnalyzer instantiated")
             // ML Kit barcode options (CODE_39 for VINs)
@@ -368,13 +372,11 @@ class MainActivity : AppCompatActivity() {
             if (mediaImage != null) {
                 val image = FirebaseVisionImage.fromMediaImage(mediaImage, imageRotation)
                 // Pass image to an ML Kit Vision API
-                val result = vinDetector.detectInImage(image)
+                vinDetector.detectInImage(image)
                     .addOnSuccessListener { barcodes ->
-                        //println("${barcodes.size} barcodes successfully scanned") // spammy debug info
                         for (barcode in barcodes) {
                             // Task completed successfully
-                            println("barcode value: ${barcode.rawValue}")
-//                            lookupVINAsync(barcode.rawValue)
+                            detectedVin = barcode.rawValue
                         }
                     }
                     .addOnFailureListener {
@@ -386,7 +388,6 @@ class MainActivity : AppCompatActivity() {
             imageProxy.close()
         }
     }
-
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         // Inflate the menu; this adds items to the action bar if it is present.
@@ -431,5 +432,12 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val MY_PERMISSIONS_REQUEST_CAMERA: Int = 10
+
+    }
+}
+
+class globalState : Application() {
+    companion object {
+        var detectedVin: String? = null
     }
 }
