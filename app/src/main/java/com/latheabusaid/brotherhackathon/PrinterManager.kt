@@ -162,7 +162,7 @@ object PrinterManager {
                 margins
             )
         } else {
-            val height = 152f
+            val height = 49.92f
             CustomPaperInfo.newCustomDiaCutPaper(
                 info!!.printerModel,
                 Unit.Mm,

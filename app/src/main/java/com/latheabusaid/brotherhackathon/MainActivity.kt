@@ -12,6 +12,8 @@ import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Spinner
 import androidx.appcompat.app.AppCompatActivity
@@ -91,15 +93,16 @@ class MainActivity : AppCompatActivity() {
         return mutableBitmap
     }
 
+    var selectedPrinterModel: String? = null
+    var selectedConnectionType: CONNECTION = CONNECTION.BLUETOOTH
     // Prints bitmap with hard coded settings
     private fun printBitmap(bitmapToPrint: Bitmap) {
         Thread(Runnable {
             // Configure connection
-            findPrinter("RJ-4250WB", CONNECTION.BLUETOOTH)
-//            findPrinter("QL-1110NWB", CONNECTION.WIFI)
+            findPrinter(selectedPrinterModel, selectedConnectionType)
             PrinterManager.setWorkingDirectory(this)
-//            loadLabel()
-            loadRoll()
+            loadLabel()
+            //loadRoll()
             val printer = PrinterManager.printer // copies printer reference for easier calls
 
             // Establish connection
@@ -118,8 +121,8 @@ class MainActivity : AppCompatActivity() {
         }).start()
     }
 
-    var mySensorManager: SensorManager? = null
-    var myProximitySensor: Sensor? = null
+    private var mySensorManager: SensorManager? = null
+    private var myProximitySensor: Sensor? = null
     var proximitySensorEventListener: SensorEventListener = object : SensorEventListener {
         var timeStamp = System.currentTimeMillis()
 
@@ -143,7 +146,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    val VOICE_RECOGNITION_REQUEST_CODE = 1234
+    private val VOICE_RECOGNITION_REQUEST_CODE = 1234
+
     // Activity onCreate
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -152,18 +156,49 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
 
-        val spinner: Spinner = findViewById(R.id.planets_spinner)
-        // Create an ArrayAdapter using the string array and a default spinner layout
-        ArrayAdapter.createFromResource(
+        // Printer configuration stuff
+        val validPrinters = resources.getStringArray(R.array.printers_array)
+        val validConnectionTypes = resources.getStringArray(R.array.connections_array)
+
+        val printerSpinner: Spinner = findViewById(R.id.printer_spinner)
+        val connectionSpinner: Spinner = findViewById(R.id.connection_spinner)
+
+        val printerSpinnerAdapter = ArrayAdapter(
             this,
-            R.array.planets_array,
-            android.R.layout.simple_spinner_item
-        ).also { adapter ->
-            // Specify the layout to use when the list of choices appears
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            // Apply the adapter to the spinner
-            spinner.adapter = adapter
+            android.R.layout.simple_spinner_dropdown_item, validPrinters
+        )
+        printerSpinner.adapter = printerSpinnerAdapter
+        printerSpinner.onItemSelectedListener = object :
+            AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View, position: Int, id: Long) {
+                selectedPrinterModel = validPrinters[position]
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>) {
+                // write code to perform some action
+            }
         }
+
+        val connectionSpinnerAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item, validConnectionTypes
+        )
+        connectionSpinner.adapter = connectionSpinnerAdapter
+        connectionSpinner.onItemSelectedListener = object :
+            AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View, position: Int, id: Long) {
+                when (validConnectionTypes[position]) {
+                    "Bluetooth" -> selectedConnectionType = CONNECTION.BLUETOOTH
+                    "Wifi" -> selectedConnectionType = CONNECTION.WIFI
+                    "USB" -> selectedConnectionType = CONNECTION.USB
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>) {
+                // write code to perform some action
+            }
+        }
+
 
         // Proximity sensor stuff
         mySensorManager = getSystemService(
@@ -173,7 +208,6 @@ class MainActivity : AppCompatActivity() {
             Sensor.TYPE_PROXIMITY
         )
         if (myProximitySensor == null) {
-//            ProximitySensor.setText("No Proximity Sensor!")
             println("No proximity sensor found!")
         } else {
             mySensorManager!!.registerListener(
@@ -186,6 +220,7 @@ class MainActivity : AppCompatActivity() {
         // Printer setup
         loadPrinterPreferences()
 
+        // Button listeners
         btn_speak.setOnClickListener {
             startVoiceRecognitionActivity()
         }
@@ -207,12 +242,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun informationMenu() {
-        startActivity(Intent("android.intent.action.INFOSCREEN"))
-    }
-
     fun startVoiceRecognitionActivity() {
-//        val intent = Intent(RecognizerIntent.ACTION_VOICE_SEARCH_HANDS_FREE)
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         intent.putExtra(
             RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -228,36 +258,12 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == VOICE_RECOGNITION_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
-            val results: List<String> = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)!!
+            val results: List<String> =
+                data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)!!
             val mAnswer = results[0]
             println("Speech Result: $mAnswer")
             printBitmap(createTicket(listOf(mAnswer)))
         }
 
     }
-
-//    override fun onRequestPermissionsResult(
-//        requestCode: Int,
-//        permissions: Array<String>,
-//        grantResults: IntArray
-//    ) {
-//        when (requestCode) {
-//            MY_PERMISSIONS_REQUEST_CAMERA -> {
-//                // If request is cancelled, the result arrays are empty.
-//                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-//                    // permission was granted
-//                    startCamera()
-//                } else {
-//                    // permission denied
-//                }
-//                return
-//            }
-//
-//            // Add other 'when' lines to check for other
-//            // permissions this app might request.
-//            else -> {
-//                // Ignore all other requests.
-//            }
-//        }
-//    }
 }
