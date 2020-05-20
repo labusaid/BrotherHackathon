@@ -149,7 +149,7 @@ object PrinterManager {
 
     // Custom settings for RJ4250
     private fun setRJ4250Paper(isRoll: Boolean) {
-        val width = 102.0f
+        val width = 102.0f // width in mm
         val margins = 0.0f
         val customPaperInfo: CustomPaperInfo
         customPaperInfo = if (isRoll) {
@@ -162,7 +162,7 @@ object PrinterManager {
                 margins
             )
         } else {
-            val height = 49.92f
+            val height = 49.92f // height in mm
             CustomPaperInfo.newCustomDiaCutPaper(
                 info!!.printerModel,
                 Unit.Mm,

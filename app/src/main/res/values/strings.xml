@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Voice Label Printer</string>
+    <string name="app_name">Voice Label</string>
     <string name="action_settings">Settings</string>
     <string name="btn_speak">Tap for voice prompt\n (or wave hand over device)</string>
 
