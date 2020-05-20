@@ -28,7 +28,6 @@ import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.firebase.database.*
 import com.google.firebase.database.ktx.database
-import com.google.firebase.database.ktx.getValue
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcode
@@ -60,8 +59,98 @@ import java.util.concurrent.Executor
 
 class MainActivity : AppCompatActivity() {
 
-    // Firebase reference
-    private val database: DatabaseReference = Firebase.database.reference
+    // CameraX analyzer for VIN tags using ML Kit Vision
+    class VinAnalyzer : ImageAnalysis.Analyzer {
+        private val vinDetector: FirebaseVisionBarcodeDetector by lazy {
+            println("vinAnalyzer instantiated")
+            // ML Kit barcode options (CODE_39 for VINs)
+            val options = FirebaseVisionBarcodeDetectorOptions.Builder()
+                .setBarcodeFormats(
+                    FirebaseVisionBarcode.FORMAT_CODE_39
+                )
+                .build()
+            FirebaseVision.getInstance().getVisionBarcodeDetector(options)
+        }
+
+        private fun degreesToFirebaseRotation(degrees: Int): Int = when (degrees) {
+            0 -> FirebaseVisionImageMetadata.ROTATION_0
+            90 -> FirebaseVisionImageMetadata.ROTATION_90
+            180 -> FirebaseVisionImageMetadata.ROTATION_180
+            270 -> FirebaseVisionImageMetadata.ROTATION_270
+            else -> throw Exception("Rotation must be 0, 90, 180, or 270.")
+        }
+
+        @SuppressLint("UnsafeExperimentalUsageError")
+        override fun analyze(imageProxy: ImageProxy) {
+            val degrees = imageProxy.imageInfo.rotationDegrees
+            val mediaImage = imageProxy.image
+            val imageRotation = degreesToFirebaseRotation(degrees)
+            if (mediaImage != null) {
+                val image = FirebaseVisionImage.fromMediaImage(mediaImage, imageRotation)
+                // Pass image to an ML Kit Vision API
+                vinDetector.detectInImage(image)
+                    .addOnSuccessListener { barcodes ->
+                        for (barcode in barcodes) {
+                            // Task completed successfully
+                            onUpdateVin(barcode.rawValue!!)
+                        }
+                    }
+                    .addOnFailureListener {
+                        // Task failed with an exception
+                        println("could not read barcode")
+                    }
+            }
+            // Manually close to prevent stalling
+            imageProxy.close()
+        }
+    }
+
+    // Gets camera from camera provider and runs bindCamera()
+    private fun startCamera() {
+        println("starting camera")
+        // Camera setup
+        cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        // Check cameraProvider availability
+        cameraProviderFuture.addListener(Runnable {
+            val cameraProvider = cameraProviderFuture.get()
+            bindCamera(cameraProvider)
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    // Simple Executor for running on a new Thread
+    internal class ThreadPerTaskExecutor : Executor {
+        override fun execute(r: Runnable?) {
+            Thread(r).start()
+        }
+    }
+
+    // Binds CameraX analyzer and preview
+    private fun bindCamera(cameraProvider: ProcessCameraProvider) {
+        println("binding camera")
+        val preview: Preview = Preview.Builder()
+            .build()
+
+        // Image analysis
+        val imageAnalysis = ImageAnalysis.Builder()
+            .setTargetResolution(Size(1920, 1080))
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+
+        val cameraSelector: CameraSelector = CameraSelector.Builder()
+            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+            .build()
+
+        imageAnalysis.setAnalyzer(ThreadPerTaskExecutor(), VinAnalyzer())
+
+        val camera = cameraProvider.bindToLifecycle(
+            this as LifecycleOwner,
+            cameraSelector,
+            imageAnalysis,
+            preview
+        )
+
+        preview.setSurfaceProvider(previewView.createSurfaceProvider(camera.cameraInfo))
+    }
 
     // Method to get a bitmap from assets
     private fun assetsToBitmap(fileName: String): Bitmap? {
@@ -73,6 +162,17 @@ class MainActivity : AppCompatActivity() {
             null
         }
     }
+
+    // Vehicle data class
+    @IgnoreExtraProperties
+    data class Vehicle(
+        var Vin: String? = "None",
+        var Make: String? = "None",
+        var Model: String? = "None",
+        var Year: String? = "None",
+        var Type: String? = "None",
+        var LicencePlate: String? = "None"
+    )
 
     // Calls NTHSA API with given vin and returns JSON object with info
     private suspend fun lookupVIN(vinToLookup: String?) = withContext(Dispatchers.IO) {
@@ -126,33 +226,22 @@ class MainActivity : AppCompatActivity() {
         lookupVIN(vinToLookup)
     }
 
-    // Copies preferences from globally shared prefs
-    private fun loadPrinterPreferences() {
-        val prefs = applicationContext
-            .getSharedPreferences("printer_settings", Context.MODE_PRIVATE)
-        val printer = prefs.getString("printer", null)
-        val rawconnection = prefs.getString("connection", null)
-        var connection: CONNECTION? = null
-        if (rawconnection != null && rawconnection != "null") {
-            connection = CONNECTION.valueOf(rawconnection)
-        }
-        val mode = prefs.getString("mode", null)
-        if (printer != null) {
-            PrinterManager.printerModel = printer
-        }
-        if (connection != null) {
-            PrinterManager.connection = connection
-        }
-        if (printer != null && connection != null) {
-            findPrinter(printer, connection)
-        }
-        if (mode != null) {
-            when (mode) {
-                "label" -> loadLabel()
-                "roll" -> loadRoll()
-            }
-        }
+    // Raises Intent for voice recognition dialogue
+    private fun startVoiceRecognitionActivity() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        intent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+        )
+        intent.putExtra(
+            RecognizerIntent.EXTRA_PROMPT,
+            "Read Out Licence Plate"
+        )
+        startActivityForResult(intent, REQUEST_VOICE_RECOGNITION)
     }
+
+    // Firebase reference
+    private val database: DatabaseReference = Firebase.database.reference
 
     // Generates ticket with given info and returns bitmap
     private fun createTicket(newVehicle: Vehicle): Bitmap {
@@ -196,6 +285,34 @@ class MainActivity : AppCompatActivity() {
     var selectedPrinterModel: String? = null
     var selectedConnectionType: CONNECTION = CONNECTION.BLUETOOTH
 
+    // Copies preferences from globally shared prefs
+    private fun loadPrinterPreferences() {
+        val prefs = applicationContext
+            .getSharedPreferences("printer_settings", Context.MODE_PRIVATE)
+        val printer = prefs.getString("printer", null)
+        val rawConnection = prefs.getString("connection", null)
+        var connection: CONNECTION? = null
+        if (rawConnection != null && rawConnection != "null") {
+            connection = CONNECTION.valueOf(rawConnection)
+        }
+        val mode = prefs.getString("mode", null)
+        if (printer != null) {
+            PrinterManager.printerModel = printer
+        }
+        if (connection != null) {
+            PrinterManager.connection = connection
+        }
+        if (printer != null && connection != null) {
+            findPrinter(printer, connection)
+        }
+        if (mode != null) {
+            when (mode) {
+                "label" -> loadLabel()
+                "roll" -> loadRoll()
+            }
+        }
+    }
+
     // Prints bitmap with hard coded settings
     private fun printBitmap(bitmapToPrint: Bitmap) {
         Thread(Runnable {
@@ -222,10 +339,11 @@ class MainActivity : AppCompatActivity() {
         }).start()
     }
 
-    private val VOICE_RECOGNITION_REQUEST_CODE = 1234
+    private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
+    private val PERMISSIONS_REQUEST_CAMERA = 10
+    private val REQUEST_VOICE_RECOGNITION = 11
 
     // Activity onCreate
-    private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -241,7 +359,7 @@ class MainActivity : AppCompatActivity() {
             // No explanation needed, we can request the permission.
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.CAMERA), MY_PERMISSIONS_REQUEST_CAMERA
+                arrayOf(Manifest.permission.CAMERA), PERMISSIONS_REQUEST_CAMERA
             )
         } else {
             // Permission has already been granted
@@ -316,23 +434,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    @IgnoreExtraProperties
-    data class Vehicle(
-        var Vin: String? = "None",
-        var Make: String? = "None",
-        var Model: String? = "None",
-        var Year: String? = "None",
-        var Type: String? = "None",
-        var LicencePlate: String? = "None"
-    )
-
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<String>,
         grantResults: IntArray
     ) {
         when (requestCode) {
-            MY_PERMISSIONS_REQUEST_CAMERA -> {
+            PERMISSIONS_REQUEST_CAMERA -> {
                 // If request is cancelled, the result arrays are empty.
                 if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
                     // permission was granted
@@ -348,96 +456,6 @@ class MainActivity : AppCompatActivity() {
             else -> {
                 // Ignore all other requests.
             }
-        }
-    }
-
-    // Simple Executor for running on a new Thread
-    internal class ThreadPerTaskExecutor : Executor {
-        override fun execute(r: Runnable?) {
-            Thread(r).start()
-        }
-    }
-
-    private fun startCamera() {
-        println("starting camera")
-        // Camera setup
-        cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        // Check cameraProvider availability
-        cameraProviderFuture.addListener(Runnable {
-            val cameraProvider = cameraProviderFuture.get()
-            bindCamera(cameraProvider)
-        }, ContextCompat.getMainExecutor(this))
-    }
-
-    private fun bindCamera(cameraProvider: ProcessCameraProvider) {
-        println("binding camera")
-        val preview: Preview = Preview.Builder()
-            .build()
-
-        // Image analysis
-        val imageAnalysis = ImageAnalysis.Builder()
-            .setTargetResolution(Size(1920, 1080))
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .build()
-
-        val cameraSelector: CameraSelector = CameraSelector.Builder()
-            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-            .build()
-
-        imageAnalysis.setAnalyzer(ThreadPerTaskExecutor(), VinAnalyzer())
-
-        val camera = cameraProvider.bindToLifecycle(
-            this as LifecycleOwner,
-            cameraSelector,
-            imageAnalysis,
-            preview
-        )
-
-        preview.setSurfaceProvider(previewView.createSurfaceProvider(camera.cameraInfo))
-    }
-
-    class VinAnalyzer : ImageAnalysis.Analyzer {
-        private val vinDetector: FirebaseVisionBarcodeDetector by lazy {
-            println("vinAnalyzer instantiated")
-            // ML Kit barcode options (CODE_39 for VINs)
-            val options = FirebaseVisionBarcodeDetectorOptions.Builder()
-                .setBarcodeFormats(
-                    FirebaseVisionBarcode.FORMAT_CODE_39
-                )
-                .build()
-            FirebaseVision.getInstance().getVisionBarcodeDetector(options)
-        }
-
-        private fun degreesToFirebaseRotation(degrees: Int): Int = when (degrees) {
-            0 -> FirebaseVisionImageMetadata.ROTATION_0
-            90 -> FirebaseVisionImageMetadata.ROTATION_90
-            180 -> FirebaseVisionImageMetadata.ROTATION_180
-            270 -> FirebaseVisionImageMetadata.ROTATION_270
-            else -> throw Exception("Rotation must be 0, 90, 180, or 270.")
-        }
-
-        @SuppressLint("UnsafeExperimentalUsageError")
-        override fun analyze(imageProxy: ImageProxy) {
-            val degrees = imageProxy.imageInfo.rotationDegrees
-            val mediaImage = imageProxy.image
-            val imageRotation = degreesToFirebaseRotation(degrees)
-            if (mediaImage != null) {
-                val image = FirebaseVisionImage.fromMediaImage(mediaImage, imageRotation)
-                // Pass image to an ML Kit Vision API
-                vinDetector.detectInImage(image)
-                    .addOnSuccessListener { barcodes ->
-                        for (barcode in barcodes) {
-                            // Task completed successfully
-                            onUpdateVin(barcode.rawValue!!)
-                        }
-                    }
-                    .addOnFailureListener {
-                        // Task failed with an exception
-                        println("could not read barcode")
-                    }
-            }
-            // Manually close to prevent stalling
-            imageProxy.close()
         }
     }
 
@@ -457,37 +475,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startVoiceRecognitionActivity() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-        intent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-        )
-        intent.putExtra(
-            RecognizerIntent.EXTRA_PROMPT,
-            "Read Out Licence Plate"
-        )
-        startActivityForResult(intent, VOICE_RECOGNITION_REQUEST_CODE)
-    }
-
+    // Handles results from raised Intents
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == VOICE_RECOGNITION_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+        // Voice recognition dialogue handling
+        if (requestCode == REQUEST_VOICE_RECOGNITION && resultCode == Activity.RESULT_OK) {
             val results: List<String> =
                 data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)!!
             val mAnswer = results[0]
             println("Speech Result: $mAnswer")
-//            printBitmap(createTicket(listOf(mAnswer)))
         }
-
-    }
-
-    companion object {
-        const val MY_PERMISSIONS_REQUEST_CAMERA: Int = 10
-
     }
 }
 
+
+// Class for keeping and accessing global variables within the app
 class GlobalState : Application() {
     companion object {
         var detectedVin: String? = null

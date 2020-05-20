@@ -26,30 +26,27 @@ object PrinterManager {
      * Print with SDK functions
      */
 
+    // TODO: rework rolls/labels system to allow input of any supported rolls
+
     // Define supported printers
     val supportedModels = arrayOf(
         "QL-820NWB",
         "QL-1110NWB",
-        "RJ-4250WB",
-        "PJ-763",
-        "PJ-763MFi",
-        "PJ-773"
+        "RJ-4250WB"
     )
 
     // Define 'roll' for each printer
     private val ROLLS = arrayOf(
         "DK-2251 (2.4\")",
         "DK-2205 (2.4\")",
-        "RD-M01E5 (4\")",
-        "A4", "A4", "A4"
+        "RD-M01E5 (4\")"
     )
 
     // Define 'label' for each printer
     private val LABELS = arrayOf(
         "DK-1201 (1.14\" x 3.5\")",
         "DK-1247 (4.07\" x 6.4\")",
-        "RD-M03E1 (4\" x 6\")",  // "RD-M06E1"
-        "LETTER", "LETTER", "LETTER"
+        "RD-M03E1 (4\" x 6\")" // "RD-M06E1"
     )
 
     // Printer definition
@@ -110,11 +107,6 @@ object PrinterManager {
                 info!!.isAutoCut = true
             }
             "RJ-4250WB", "RJ_4250WB" -> setRJ4250Paper(false)
-            "PJ-763", "PJ_763", "PJ-763MFi", "PJ_763MFi", "PJ-773", "PJ_773" -> {
-                info!!.paperSize = PrinterInfo.PaperSize.LETTER
-                info!!.printMode =
-                    PrinterInfo.PrintMode.FIT_TO_PAGE
-            }
         }
         toastIt("Load " + labelType + " " + info!!.labelNameIndex + " " + info!!.paperSize + " " + info!!.customPaper)
         printer!!.printerInfo = info
@@ -137,11 +129,6 @@ object PrinterManager {
                 info!!.isAutoCut = true
             }
             "RJ-4250WB", "RJ_4250WB" -> setRJ4250Paper(true)
-            "PJ-763", "PJ_763", "PJ-763MFi", "PJ_763MFi", "PJ-773", "PJ_773" -> {
-                info!!.paperSize = PrinterInfo.PaperSize.A4
-                info!!.printMode =
-                    PrinterInfo.PrintMode.FIT_TO_PAGE
-            }
         }
         toastIt("Load " + labelType + " " + info!!.labelNameIndex + " " + info!!.paperSize + " " + info!!.customPaper)
         printer!!.printerInfo = info
@@ -149,7 +136,7 @@ object PrinterManager {
 
     // Custom settings for RJ4250
     private fun setRJ4250Paper(isRoll: Boolean) {
-        val width = 102.0f
+        val width = 102.0f // width in mm
         val margins = 0.0f
         val customPaperInfo: CustomPaperInfo
         customPaperInfo = if (isRoll) {
@@ -162,7 +149,7 @@ object PrinterManager {
                 margins
             )
         } else {
-            val height = 49.92f
+            val height = 49.92f // height in mm
             CustomPaperInfo.newCustomDiaCutPaper(
                 info!!.printerModel,
                 Unit.Mm,
