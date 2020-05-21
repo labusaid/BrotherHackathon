@@ -1,4 +1,4 @@
-package com.latheabusaid.brotherhackathon
+package com.latheabusaid.voicelabel
 
 import org.junit.Test
 

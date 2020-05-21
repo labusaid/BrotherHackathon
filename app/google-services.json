@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:1095681444609:android:317cb4cf592135a9aa2900",
         "android_client_info": {
-          "package_name": "com.example.brotherhackathon"
+          "package_name": "com.latheabusaid.voicelabel"
         }
       },
       "oauth_client": [
@@ -18,7 +18,7 @@
           "client_id": "1095681444609-efur32pjun7sd433oaca4mcii168h5k1.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.brotherhackathon",
+            "package_name": "com.latheabusaid.voicelabel",
             "certificate_hash": "1b37b9b462b6670f80ac64c19f1ea5e0631e549b"
           }
         },

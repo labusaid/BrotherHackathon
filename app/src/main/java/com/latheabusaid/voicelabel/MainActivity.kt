@@ -1,4 +1,4 @@
-package com.latheabusaid.brotherhackathon
+package com.latheabusaid.voicelabel
 
 import android.app.Activity
 import android.content.Context
@@ -16,10 +16,10 @@ import android.widget.ArrayAdapter
 import android.widget.Spinner
 import androidx.appcompat.app.AppCompatActivity
 import com.brother.ptouch.sdk.PrinterInfo.ErrorCode
-import com.latheabusaid.brotherhackathon.PrinterManager.CONNECTION
-import com.latheabusaid.brotherhackathon.PrinterManager.findPrinter
-import com.latheabusaid.brotherhackathon.PrinterManager.loadLabel
-import com.latheabusaid.brotherhackathon.PrinterManager.loadRoll
+import com.latheabusaid.voicelabel.PrinterManager.CONNECTION
+import com.latheabusaid.voicelabel.PrinterManager.findPrinter
+import com.latheabusaid.voicelabel.PrinterManager.loadLabel
+import com.latheabusaid.voicelabel.PrinterManager.loadRoll
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.content_main.*
 import java.io.IOException

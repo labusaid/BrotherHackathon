@@ -1,7 +1,7 @@
 // Credit to Lazaro Herrera for making the initial java version of this and validating most printers
 // Ported to Kotlin, cleaned up, and slightly modified by Lathe Abusaid
 
-package com.latheabusaid.brotherhackathon
+package com.latheabusaid.voicelabel
 
 import android.annotation.TargetApi
 import android.bluetooth.BluetoothAdapter
@@ -14,7 +14,6 @@ import com.brother.ptouch.sdk.LabelInfo
 import com.brother.ptouch.sdk.Printer
 import com.brother.ptouch.sdk.PrinterInfo
 import com.brother.ptouch.sdk.Unit
-import java.io.*
 import java.util.*
 
 @Suppress("MemberVisibilityCanBePrivate")
